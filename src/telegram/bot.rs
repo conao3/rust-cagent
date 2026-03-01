@@ -64,31 +64,22 @@ async fn handle_message(
 
     let key = ConversationKey::from_message(&msg);
 
+    let is_new_session;
     let session_id = match session_map.get(&key).await {
-        Some(id) if server::session_dir(&id).exists() => id,
+        Some(id) if server::session_dir(&id).exists() => {
+            is_new_session = false;
+            id
+        }
         existing => {
             if existing.is_some() {
                 session_map.remove(&key).await;
             }
-            let id = claude_run::launch_session(&claude_command, (*claude_config_dir).as_deref())?;
+            let id = claude_run::launch_session(&claude_command, (*claude_config_dir).as_deref(), Some(&text))?;
             session_map.insert(key.clone(), id.clone()).await;
+            is_new_session = true;
             id
         }
     };
-
-    let dir = server::session_dir(&session_id);
-    let fifo_path = dir.join("input");
-
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        let mut fifo = std::fs::OpenOptions::new()
-            .write(true)
-            .open(&fifo_path)?;
-        fifo.write_all(text.as_bytes())?;
-        fifo.write_all(b"\n")?;
-        fifo.flush()?;
-        Ok(())
-    })
-    .await??;
 
     let already_subscribed = active_subscribers.read().await.contains(&session_id);
     if !already_subscribed {
@@ -96,12 +87,35 @@ async fn handle_message(
             .write()
             .await
             .insert(session_id.clone());
+
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
         spawn_output_subscriber(
             bot,
-            session_id,
+            session_id.clone(),
             key,
             active_subscribers,
+            ready_tx,
         );
+
+        if is_new_session {
+            let _ = ready_rx.await;
+        }
+    }
+
+    if !is_new_session {
+        let dir = server::session_dir(&session_id);
+        let fifo_path = dir.join("input");
+
+        tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+            let mut fifo = std::fs::OpenOptions::new()
+                .write(true)
+                .open(&fifo_path)?;
+            fifo.write_all(text.as_bytes())?;
+            fifo.write_all(b"\n")?;
+            fifo.flush()?;
+            Ok(())
+        })
+        .await??;
     }
 
     Ok(())
@@ -112,6 +126,7 @@ fn spawn_output_subscriber(
     session_id: String,
     key: ConversationKey,
     active_subscribers: Arc<RwLock<HashSet<String>>>,
+    ready_tx: tokio::sync::oneshot::Sender<()>,
 ) {
     tokio::spawn(async move {
         let dir = server::session_dir(&session_id);
@@ -129,9 +144,12 @@ fn spawn_output_subscriber(
             Err(e) => {
                 log::error!("failed to connect output.sock for {session_id}: {e}");
                 active_subscribers.write().await.remove(&session_id);
+                let _ = ready_tx.send(());
                 return;
             }
         };
+
+        let _ = ready_tx.send(());
 
         let (reader, _) = stream.into_split();
         let mut lines = tokio::io::BufReader::new(reader).lines();

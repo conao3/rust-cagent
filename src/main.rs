@@ -26,6 +26,8 @@ enum Commands {
         claude_command: String,
         #[arg(long)]
         claude_config_dir: Option<String>,
+        #[arg(long)]
+        initial_prompt: Option<String>,
         session_id: String,
     },
 }
@@ -70,8 +72,8 @@ async fn main() -> anyhow::Result<()> {
         Commands::Telegram { command } => match command {
             TelegramCommands::Start => telegram::bot::start().await?,
         },
-        Commands::Daemon { session_id, claude_command, claude_config_dir } => {
-            agent::claude::run::run_daemon(&session_id, &claude_command, claude_config_dir.as_deref()).await?
+        Commands::Daemon { session_id, claude_command, claude_config_dir, initial_prompt } => {
+            agent::claude::run::run_daemon(&session_id, &claude_command, claude_config_dir.as_deref(), initial_prompt.as_deref()).await?
         }
     }
     Ok(())

@@ -10,7 +10,7 @@ fn generate_session_id() -> String {
     format!("{:08x}", rng.random::<u32>())
 }
 
-pub fn launch_session(claude_command: &str, claude_config_dir: Option<&str>) -> anyhow::Result<String> {
+pub fn launch_session(claude_command: &str, claude_config_dir: Option<&str>, initial_prompt: Option<&str>) -> anyhow::Result<String> {
     let session_id = generate_session_id();
 
     server::create_session_dir(&session_id)?;
@@ -18,6 +18,9 @@ pub fn launch_session(claude_command: &str, claude_config_dir: Option<&str>) -> 
     let mut args = vec!["daemon", "--claude-command", claude_command];
     if let Some(dir) = claude_config_dir {
         args.extend(["--claude-config-dir", dir]);
+    }
+    if let Some(prompt) = initial_prompt {
+        args.extend(["--initial-prompt", prompt]);
     }
     args.push(&session_id);
 
@@ -32,12 +35,12 @@ pub fn launch_session(claude_command: &str, claude_config_dir: Option<&str>) -> 
 }
 
 pub async fn launch() -> anyhow::Result<()> {
-    let session_id = launch_session("claude", None)?;
+    let session_id = launch_session("claude", None, None)?;
     println!("{session_id}");
     Ok(())
 }
 
-pub async fn run_daemon(session_id: &str, claude_command: &str, claude_config_dir: Option<&str>) -> anyhow::Result<()> {
+pub async fn run_daemon(session_id: &str, claude_command: &str, claude_config_dir: Option<&str>, initial_prompt: Option<&str>) -> anyhow::Result<()> {
     let cwd = env::current_dir()?;
 
     let session_dir = server::session_dir(session_id);
@@ -46,7 +49,7 @@ pub async fn run_daemon(session_id: &str, claude_command: &str, claude_config_di
 
     server::write_meta(session_id, &cwd)?;
 
-    let handle = pty::spawn_claude(&cwd, claude_command)?;
+    let handle = pty::spawn_claude(&cwd, claude_command, initial_prompt)?;
 
     server::start_fifo_reader(&fifo_path, handle.input_tx.clone());
 

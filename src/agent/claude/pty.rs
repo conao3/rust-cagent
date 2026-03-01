@@ -57,13 +57,16 @@ pub struct PtyHandle {
     pub output_rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
 }
 
-pub fn spawn_claude(cwd: &Path, command: &str) -> anyhow::Result<PtyHandle> {
+pub fn spawn_claude(cwd: &Path, command: &str, initial_prompt: Option<&str>) -> anyhow::Result<PtyHandle> {
     let size = terminal_size();
     let pty_system = native_pty_system();
     let pair = pty_system.openpty(size)?;
 
     let mut cmd = CommandBuilder::new(command);
     cmd.arg("--dangerously-skip-permissions");
+    if let Some(prompt) = initial_prompt {
+        cmd.arg(prompt);
+    }
     cmd.cwd(cwd);
 
     let mut child = pair.slave.spawn_command(cmd)?;
