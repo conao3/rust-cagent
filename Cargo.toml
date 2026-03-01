@@ -7,3 +7,5 @@ license = "Apache-2.0"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+# https://github.com/wezterm/wezterm/tree/main/pty
+portable-pty = "0.8"
