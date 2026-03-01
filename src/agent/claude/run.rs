@@ -10,13 +10,19 @@ fn generate_session_id() -> String {
     format!("{:08x}", rng.random::<u32>())
 }
 
-pub fn launch_session() -> anyhow::Result<String> {
+pub fn launch_session(claude_command: &str, claude_config_dir: Option<&str>) -> anyhow::Result<String> {
     let session_id = generate_session_id();
 
     server::create_session_dir(&session_id)?;
 
+    let mut args = vec!["daemon", "--claude-command", claude_command];
+    if let Some(dir) = claude_config_dir {
+        args.extend(["--claude-config-dir", dir]);
+    }
+    args.push(&session_id);
+
     std::process::Command::new(env::current_exe()?)
-        .args(["daemon", &session_id])
+        .args(&args)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -26,12 +32,12 @@ pub fn launch_session() -> anyhow::Result<String> {
 }
 
 pub async fn launch() -> anyhow::Result<()> {
-    let session_id = launch_session()?;
+    let session_id = launch_session("claude", None)?;
     println!("{session_id}");
     Ok(())
 }
 
-pub async fn run_daemon(session_id: &str) -> anyhow::Result<()> {
+pub async fn run_daemon(session_id: &str, claude_command: &str, claude_config_dir: Option<&str>) -> anyhow::Result<()> {
     let cwd = env::current_dir()?;
 
     let session_dir = server::session_dir(session_id);
@@ -40,7 +46,7 @@ pub async fn run_daemon(session_id: &str) -> anyhow::Result<()> {
 
     server::write_meta(session_id, &cwd)?;
 
-    let handle = pty::spawn_claude(&cwd)?;
+    let handle = pty::spawn_claude(&cwd, claude_command)?;
 
     server::start_fifo_reader(&fifo_path, handle.input_tx.clone());
 
@@ -49,8 +55,9 @@ pub async fn run_daemon(session_id: &str) -> anyhow::Result<()> {
 
     let (session_tx, session_rx) = tokio::sync::mpsc::unbounded_channel();
     let session_cwd = cwd.clone();
+    let session_config_dir = claude_config_dir.map(std::path::PathBuf::from);
     tokio::task::spawn_blocking(move || {
-        if let Err(e) = session::watch_session(&session_cwd, session_tx) {
+        if let Err(e) = session::watch_session(&session_cwd, session_config_dir, session_tx) {
             log::error!("session watcher error: {e}");
         }
     });

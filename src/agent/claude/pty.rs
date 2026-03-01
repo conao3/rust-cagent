@@ -1,4 +1,4 @@
-use std::io::{Read, Write};
+use std::io::Read;
 use std::mem::MaybeUninit;
 use std::path::Path;
 use std::sync::mpsc;
@@ -33,46 +33,53 @@ impl Drop for RawModeGuard {
     }
 }
 
-fn terminal_size() -> anyhow::Result<PtySize> {
+fn terminal_size() -> PtySize {
     let mut ws = unsafe { MaybeUninit::<libc::winsize>::zeroed().assume_init() };
     if unsafe { libc::ioctl(libc::STDOUT_FILENO, libc::TIOCGWINSZ, &mut ws) } != 0 {
-        anyhow::bail!("ioctl TIOCGWINSZ failed");
+        return PtySize {
+            rows: 24,
+            cols: 80,
+            pixel_width: 0,
+            pixel_height: 0,
+        };
     }
-    Ok(PtySize {
+    PtySize {
         rows: ws.ws_row,
         cols: ws.ws_col,
         pixel_width: ws.ws_xpixel,
         pixel_height: ws.ws_ypixel,
-    })
+    }
 }
 
 pub struct PtyHandle {
     pub child_exited: oneshot::Receiver<anyhow::Result<u32>>,
     pub input_tx: mpsc::Sender<Vec<u8>>,
+    pub output_rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
 }
 
-pub fn spawn_claude(cwd: &Path) -> anyhow::Result<PtyHandle> {
-    let size = terminal_size()?;
+pub fn spawn_claude(cwd: &Path, command: &str) -> anyhow::Result<PtyHandle> {
+    let size = terminal_size();
     let pty_system = native_pty_system();
     let pair = pty_system.openpty(size)?;
 
-    let mut cmd = CommandBuilder::new("claude");
+    let mut cmd = CommandBuilder::new(command);
     cmd.arg("--dangerously-skip-permissions");
     cmd.cwd(cwd);
 
     let mut child = pair.slave.spawn_command(cmd)?;
     drop(pair.slave);
 
+    let (output_tx, output_rx) = tokio::sync::mpsc::unbounded_channel::<Vec<u8>>();
     let mut reader = pair.master.try_clone_reader()?;
     std::thread::spawn(move || {
-        let mut stdout = std::io::stdout();
         let mut buf = [0u8; 4096];
         loop {
             match reader.read(&mut buf) {
                 Ok(0) | Err(_) => break,
                 Ok(n) => {
-                    let _ = stdout.write_all(&buf[..n]);
-                    let _ = stdout.flush();
+                    if output_tx.send(buf[..n].to_vec()).is_err() {
+                        break;
+                    }
                 }
             }
         }
@@ -101,5 +108,6 @@ pub fn spawn_claude(cwd: &Path) -> anyhow::Result<PtyHandle> {
     Ok(PtyHandle {
         child_exited: rx,
         input_tx,
+        output_rx,
     })
 }

@@ -20,6 +20,13 @@ pub async fn start() -> anyhow::Result<()> {
         std::env::set_current_dir(wd)?;
     }
 
+    let claude_command: Arc<String> = Arc::new(
+        cfg.claude_command.unwrap_or_else(|| "claude".to_string()),
+    );
+    let claude_config_dir: Arc<Option<String>> = Arc::new(
+        cfg.claude_config_dir.map(|p| p.to_string_lossy().into_owned()),
+    );
+
     let bot = Bot::new(&cfg.telegram.token);
     let session_map = SessionMap::load();
     let active_subscribers: Arc<RwLock<HashSet<String>>> = Arc::new(RwLock::new(HashSet::new()));
@@ -28,6 +35,8 @@ pub async fn start() -> anyhow::Result<()> {
 
     Dispatcher::builder(bot.clone(), handler)
         .dependencies(dptree::deps![
+            claude_command,
+            claude_config_dir,
             session_map,
             active_subscribers,
             bot.clone()
@@ -43,6 +52,8 @@ pub async fn start() -> anyhow::Result<()> {
 async fn handle_message(
     bot: Bot,
     msg: Message,
+    claude_command: Arc<String>,
+    claude_config_dir: Arc<Option<String>>,
     session_map: SessionMap,
     active_subscribers: Arc<RwLock<HashSet<String>>>,
 ) -> anyhow::Result<()> {
@@ -59,7 +70,7 @@ async fn handle_message(
             if existing.is_some() {
                 session_map.remove(&key).await;
             }
-            let id = claude_run::launch_session()?;
+            let id = claude_run::launch_session(&claude_command, (*claude_config_dir).as_deref())?;
             session_map.insert(key.clone(), id.clone()).await;
             id
         }

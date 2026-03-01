@@ -101,8 +101,11 @@ fn extract_config_dir_from_wrapper() -> Option<PathBuf> {
     None
 }
 
-fn session_dir(cwd: &Path) -> anyhow::Result<PathBuf> {
-    let base = resolve_claude_config_dir()?;
+fn session_dir(cwd: &Path, config_dir: Option<&Path>) -> anyhow::Result<PathBuf> {
+    let base = match config_dir {
+        Some(dir) => dir.to_path_buf(),
+        None => resolve_claude_config_dir()?,
+    };
     let cwd_str = cwd.to_string_lossy();
     let hash = cwd_str.replace('/', "-").replace('.', "-");
     Ok(base.join("projects").join(hash))
@@ -110,9 +113,10 @@ fn session_dir(cwd: &Path) -> anyhow::Result<PathBuf> {
 
 pub fn watch_session(
     cwd: &Path,
+    claude_config_dir: Option<PathBuf>,
     tx: tokio::sync::mpsc::UnboundedSender<String>,
 ) -> anyhow::Result<()> {
-    let dir = session_dir(cwd)?;
+    let dir = session_dir(cwd, claude_config_dir.as_deref())?;
     log::info!("watching session dir: {}", dir.display());
 
     if !dir.exists() {

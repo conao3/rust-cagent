@@ -4,6 +4,8 @@ use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
+    pub claude_command: Option<String>,
+    pub claude_config_dir: Option<PathBuf>,
     pub telegram: TelegramConfig,
 }
 
