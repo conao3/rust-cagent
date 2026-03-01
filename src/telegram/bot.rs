@@ -3,6 +3,7 @@ use std::io::Write;
 use std::sync::Arc;
 
 use teloxide::prelude::*;
+use teloxide::types::ChatAction;
 use tokio::io::AsyncBufReadExt;
 use tokio::net::UnixStream;
 use tokio::sync::RwLock;
@@ -63,6 +64,13 @@ async fn handle_message(
     };
 
     let key = ConversationKey::from_message(&msg);
+
+    let chat_id = ChatId(key.chat_id);
+    let mut typing_req = bot.send_chat_action(chat_id, ChatAction::Typing);
+    if let Some(thread_id) = key.thread_id {
+        typing_req = typing_req.message_thread_id(thread_id);
+    }
+    let _ = typing_req.await;
 
     let is_new_session;
     let session_id = match session_map.get(&key).await {
@@ -151,6 +159,25 @@ fn spawn_output_subscriber(
 
         let _ = ready_tx.send(());
 
+        let chat_id = ChatId(key.chat_id);
+        let typing_active = Arc::new(std::sync::atomic::AtomicBool::new(false));
+
+        let typing_flag = typing_active.clone();
+        let typing_bot = bot.clone();
+        let typing_thread_id = key.thread_id;
+        let typing_handle = tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+                if typing_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                    let mut req = typing_bot.send_chat_action(chat_id, ChatAction::Typing);
+                    if let Some(thread_id) = typing_thread_id {
+                        req = req.message_thread_id(thread_id);
+                    }
+                    let _ = req.await;
+                }
+            }
+        });
+
         let (reader, _) = stream.into_split();
         let mut lines = tokio::io::BufReader::new(reader).lines();
 
@@ -161,7 +188,12 @@ fn spawn_output_subscriber(
 
             let parsed: Result<session::SessionMessage, _> = serde_json::from_str(&line);
             let text = match parsed {
+                Ok(session::SessionMessage::User { .. }) => {
+                    typing_active.store(true, std::sync::atomic::Ordering::Relaxed);
+                    continue;
+                }
                 Ok(session::SessionMessage::Assistant { message }) => {
+                    typing_active.store(false, std::sync::atomic::Ordering::Relaxed);
                     let texts: Vec<&str> = message
                         .content
                         .iter()
@@ -178,7 +210,6 @@ fn spawn_output_subscriber(
                 _ => continue,
             };
 
-            let chat_id = ChatId(key.chat_id);
             for chunk in format::split_for_telegram(&text) {
                 let mut req = bot.send_message(chat_id, &chunk);
                 if let Some(thread_id) = key.thread_id {
@@ -189,6 +220,8 @@ fn spawn_output_subscriber(
                 }
             }
         }
+
+        typing_handle.abort();
 
         active_subscribers.write().await.remove(&session_id);
     });
