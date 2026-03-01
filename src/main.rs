@@ -1,3 +1,5 @@
+mod agent;
+
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -20,11 +22,15 @@ enum AgentCommands {
     Claude,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    env_logger::init();
+
     let cli = Cli::parse();
     match cli.command {
         Commands::Agent { command } => match command {
-            AgentCommands::Claude => println!("claude"),
+            AgentCommands::Claude => agent::claude::run::run().await?,
         },
     }
+    Ok(())
 }

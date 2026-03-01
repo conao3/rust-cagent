@@ -6,6 +6,15 @@ description = "A CLI agent tool"
 license = "Apache-2.0"
 
 [dependencies]
+anyhow = "1.0"
 clap = { version = "4", features = ["derive"] }
+dirs = "5.0"
+env_logger = "0.11"
+libc = "0.2"
+log = "0.4"
+notify = "7"
 # https://github.com/wezterm/wezterm/tree/main/pty
 portable-pty = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "signal", "macros"] }
