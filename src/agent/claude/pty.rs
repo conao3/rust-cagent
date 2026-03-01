@@ -57,6 +57,7 @@ pub fn spawn_claude(cwd: &Path) -> anyhow::Result<PtyHandle> {
     let pair = pty_system.openpty(size)?;
 
     let mut cmd = CommandBuilder::new("claude");
+    cmd.arg("--dangerously-skip-permissions");
     cmd.cwd(cwd);
 
     let mut child = pair.slave.spawn_command(cmd)?;
