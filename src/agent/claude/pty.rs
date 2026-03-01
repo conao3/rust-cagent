@@ -1,6 +1,7 @@
 use std::io::{Read, Write};
 use std::mem::MaybeUninit;
 use std::path::Path;
+use std::sync::mpsc;
 
 use portable_pty::{native_pty_system, CommandBuilder, PtySize};
 use tokio::sync::oneshot;
@@ -47,6 +48,7 @@ fn terminal_size() -> anyhow::Result<PtySize> {
 
 pub struct PtyHandle {
     pub child_exited: oneshot::Receiver<anyhow::Result<u32>>,
+    pub input_tx: mpsc::Sender<Vec<u8>>,
 }
 
 pub fn spawn_claude(cwd: &Path) -> anyhow::Result<PtyHandle> {
@@ -75,18 +77,14 @@ pub fn spawn_claude(cwd: &Path) -> anyhow::Result<PtyHandle> {
         }
     });
 
+    let (input_tx, input_rx) = mpsc::channel::<Vec<u8>>();
     let mut writer = pair.master.take_writer()?;
     std::thread::spawn(move || {
-        let mut stdin = std::io::stdin();
-        let mut buf = [0u8; 4096];
-        loop {
-            match stdin.read(&mut buf) {
-                Ok(0) | Err(_) => break,
-                Ok(n) => {
-                    let _ = writer.write_all(&buf[..n]);
-                    let _ = writer.flush();
-                }
+        while let Ok(data) = input_rx.recv() {
+            if writer.write_all(&data).is_err() {
+                break;
             }
+            let _ = writer.flush();
         }
     });
 
@@ -99,5 +97,8 @@ pub fn spawn_claude(cwd: &Path) -> anyhow::Result<PtyHandle> {
         let _ = tx.send(result);
     });
 
-    Ok(PtyHandle { child_exited: rx })
+    Ok(PtyHandle {
+        child_exited: rx,
+        input_tx,
+    })
 }

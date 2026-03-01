@@ -58,7 +58,7 @@ fn session_dir(cwd: &Path) -> anyhow::Result<PathBuf> {
 
 pub fn watch_session(
     cwd: &Path,
-    tx: tokio::sync::mpsc::UnboundedSender<SessionMessage>,
+    tx: tokio::sync::mpsc::UnboundedSender<String>,
 ) -> anyhow::Result<()> {
     let dir = session_dir(cwd)?;
     log::info!("watching session dir: {}", dir.display());
@@ -128,15 +128,8 @@ pub fn watch_session(
                     continue;
                 }
 
-                match serde_json::from_str::<SessionMessage>(&line) {
-                    Ok(msg) => {
-                        if tx.send(msg).is_err() {
-                            return Ok(());
-                        }
-                    }
-                    Err(e) => {
-                        log::warn!("parse error: {e} for line: {}", &line[..line.len().min(200)]);
-                    }
+                if tx.send(line).is_err() {
+                    return Ok(());
                 }
             }
 

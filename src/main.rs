@@ -15,6 +15,9 @@ enum Commands {
         #[command(subcommand)]
         command: AgentCommands,
     },
+    Attach {
+        session_id: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -31,6 +34,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Agent { command } => match command {
             AgentCommands::Claude => agent::claude::run::run().await?,
         },
+        Commands::Attach { session_id } => agent::claude::attach::run(&session_id).await?,
     }
     Ok(())
 }
