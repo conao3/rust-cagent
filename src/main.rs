@@ -1,4 +1,5 @@
 mod agent;
+mod cron;
 mod telegram;
 
 use clap::{Parser, Subcommand};
@@ -19,6 +20,10 @@ enum Commands {
     Telegram {
         #[command(subcommand)]
         command: TelegramCommands,
+    },
+    Cron {
+        #[command(subcommand)]
+        command: CronCommands,
     },
     #[command(hide = true)]
     Daemon {
@@ -48,6 +53,20 @@ enum TelegramCommands {
     Start,
 }
 
+#[derive(Subcommand)]
+enum CronCommands {
+    Add {
+        #[arg(long)]
+        cron: String,
+        #[arg(long)]
+        prompt: String,
+    },
+    List,
+    Rm {
+        job_id: String,
+    },
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::init();
@@ -73,6 +92,21 @@ async fn main() -> anyhow::Result<()> {
         },
         Commands::Telegram { command } => match command {
             TelegramCommands::Start => telegram::bot::start().await?,
+        },
+        Commands::Cron { command } => match command {
+            CronCommands::Add { cron, prompt } => {
+                let id = cron::storage::add(&cron, &prompt)?;
+                println!("added: {}", id);
+            }
+            CronCommands::List => {
+                for job in cron::storage::list()? {
+                    println!("{}\t{}\t{}", job.id, job.cron, job.prompt);
+                }
+            }
+            CronCommands::Rm { job_id } => {
+                cron::storage::remove(&job_id)?;
+                println!("removed: {}", job_id);
+            }
         },
         Commands::Daemon { session_id, claude_command, claude_config_dir, initial_prompt } => {
             agent::claude::run::run_daemon(&session_id, &claude_command, claude_config_dir.as_deref(), initial_prompt.as_deref()).await?
