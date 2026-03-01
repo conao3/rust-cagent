@@ -49,13 +49,60 @@ pub enum ContentBlock {
     Other,
 }
 
+fn resolve_claude_config_dir() -> anyhow::Result<PathBuf> {
+    if let Ok(dir) = std::env::var("CLAUDE_CONFIG_DIR") {
+        return Ok(PathBuf::from(dir));
+    }
+
+    if let Some(dir) = extract_config_dir_from_wrapper() {
+        return Ok(dir);
+    }
+
+    Ok(dirs::home_dir()
+        .ok_or_else(|| anyhow::anyhow!("HOME not found"))?
+        .join(".claude"))
+}
+
+fn extract_config_dir_from_wrapper() -> Option<PathBuf> {
+    let output = std::process::Command::new("which")
+        .arg("claude")
+        .output()
+        .ok()?;
+    let mut script_path = fs::canonicalize(String::from_utf8_lossy(&output.stdout).trim()).ok()?;
+
+    for _ in 0..10 {
+        let content = fs::read_to_string(&script_path).ok()?;
+        for line in content.lines() {
+            let line = line.trim();
+            if let Some(rest) = line.strip_prefix("export CLAUDE_CONFIG_DIR=") {
+                let val = rest.trim_matches('"').replace("$HOME", &dirs::home_dir()?.to_string_lossy());
+                return Some(PathBuf::from(val));
+            }
+        }
+        let next_cmd = content.lines().find_map(|l| {
+            let l = l.trim();
+            l.strip_prefix("exec ")
+                .map(|rest| rest.split_whitespace().next().unwrap_or("").trim_matches('"').to_string())
+        })?;
+        if next_cmd.is_empty() {
+            return None;
+        }
+        let resolved = if next_cmd.starts_with('/') {
+            PathBuf::from(&next_cmd)
+        } else {
+            let output = std::process::Command::new("which")
+                .arg(&next_cmd)
+                .output()
+                .ok()?;
+            PathBuf::from(String::from_utf8_lossy(&output.stdout).trim())
+        };
+        script_path = fs::canonicalize(resolved).ok()?;
+    }
+    None
+}
+
 fn session_dir(cwd: &Path) -> anyhow::Result<PathBuf> {
-    let base = match std::env::var("CLAUDE_CONFIG_DIR") {
-        Ok(dir) => PathBuf::from(dir),
-        Err(_) => dirs::home_dir()
-            .ok_or_else(|| anyhow::anyhow!("HOME not found"))?
-            .join(".claude"),
-    };
+    let base = resolve_claude_config_dir()?;
     let cwd_str = cwd.to_string_lossy();
     let hash = cwd_str.replace('/', "-").replace('.', "-");
     Ok(base.join("projects").join(hash))
