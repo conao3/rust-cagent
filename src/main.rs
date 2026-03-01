@@ -1,4 +1,5 @@
 mod agent;
+mod telegram;
 
 use clap::{Parser, Subcommand};
 
@@ -15,6 +16,10 @@ enum Commands {
         #[command(subcommand)]
         command: AgentCommands,
     },
+    Telegram {
+        #[command(subcommand)]
+        command: TelegramCommands,
+    },
     #[command(hide = true)]
     Daemon {
         session_id: String,
@@ -26,7 +31,14 @@ enum AgentCommands {
     Claude,
     List,
     Kill { session_id: String },
+    Subscribe { session_id: String },
     Attach { session_id: String },
+    Send { session_id: String, prompt: String },
+}
+
+#[derive(Subcommand)]
+enum TelegramCommands {
+    Start,
 }
 
 #[tokio::main]
@@ -41,9 +53,18 @@ async fn main() -> anyhow::Result<()> {
             AgentCommands::Kill { session_id } => {
                 agent::claude::server::kill_session(&session_id)?
             }
+            AgentCommands::Subscribe { session_id } => {
+                agent::claude::subscribe::run(&session_id).await?
+            }
             AgentCommands::Attach { session_id } => {
                 agent::claude::attach::run(&session_id).await?
             }
+            AgentCommands::Send { session_id, prompt } => {
+                agent::claude::send::run(&session_id, &prompt)?
+            }
+        },
+        Commands::Telegram { command } => match command {
+            TelegramCommands::Start => telegram::bot::start().await?,
         },
         Commands::Daemon { session_id } => agent::claude::run::run_daemon(&session_id).await?,
     }
