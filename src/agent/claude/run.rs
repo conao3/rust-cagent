@@ -48,6 +48,12 @@ pub async fn run_daemon(session_id: &str, claude_command: &str, claude_config_di
 
     let handle = pty::spawn_claude(&cwd, claude_command)?;
 
+    let auto_accept_tx = handle.input_tx.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        let _ = auto_accept_tx.send(vec![b'\r']);
+    });
+
     server::start_fifo_reader(&fifo_path, handle.input_tx.clone());
 
     let pty_sock_path = session_dir.join("pty.sock");
