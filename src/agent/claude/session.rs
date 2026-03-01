@@ -126,9 +126,7 @@ pub fn watch_session(
         .collect();
 
     let mut offsets: HashMap<PathBuf, u64> = HashMap::new();
-    for path in &existing {
-        offsets.insert(path.clone(), fs::metadata(path)?.len());
-    }
+    let mut target_file: Option<PathBuf> = None;
 
     let (notify_tx, notify_rx) = std_mpsc::channel();
     let mut watcher = notify::recommended_watcher(notify_tx)?;
@@ -150,6 +148,17 @@ pub fn watch_session(
 
         for path in event.paths {
             if path.extension().is_none_or(|ext| ext != "jsonl") {
+                continue;
+            }
+
+            if existing.contains(&path) && target_file.is_none() {
+                continue;
+            }
+
+            if target_file.is_none() {
+                log::info!("tracking new session file: {}", path.display());
+                target_file = Some(path.clone());
+            } else if target_file.as_ref() != Some(&path) {
                 continue;
             }
 
