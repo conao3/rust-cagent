@@ -4,12 +4,27 @@ use clap::{Parser, Subcommand};
 #[command(version, about = "cagent - a CLI agent tool")]
 struct Cli {
     #[command(subcommand)]
-    command: Option<Commands>,
+    command: Commands,
 }
 
 #[derive(Subcommand)]
-enum Commands {}
+enum Commands {
+    Agent {
+        #[command(subcommand)]
+        command: AgentCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum AgentCommands {
+    Claude,
+}
 
 fn main() {
-    let _cli = Cli::parse();
+    let cli = Cli::parse();
+    match cli.command {
+        Commands::Agent { command } => match command {
+            AgentCommands::Claude => println!("claude"),
+        },
+    }
 }
