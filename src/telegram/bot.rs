@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::io::Write;
 use std::sync::Arc;
 
@@ -7,6 +7,7 @@ use teloxide::types::ChatAction;
 use tokio::io::AsyncBufReadExt;
 use tokio::net::UnixStream;
 use tokio::sync::RwLock;
+use tokio::task::AbortHandle;
 
 use crate::agent::claude::{run as claude_run, server, session};
 
@@ -30,7 +31,7 @@ pub async fn start() -> anyhow::Result<()> {
 
     let bot = Bot::new(&cfg.telegram.token);
     let session_map = SessionMap::load();
-    let active_subscribers: Arc<RwLock<HashSet<String>>> = Arc::new(RwLock::new(HashSet::new()));
+    let active_subscribers: Arc<RwLock<HashMap<String, AbortHandle>>> = Arc::new(RwLock::new(HashMap::new()));
 
     let handler = Update::filter_message().endpoint(handle_message);
 
@@ -56,7 +57,7 @@ async fn handle_message(
     claude_command: Arc<String>,
     claude_config_dir: Arc<Option<String>>,
     session_map: SessionMap,
-    active_subscribers: Arc<RwLock<HashSet<String>>>,
+    active_subscribers: Arc<RwLock<HashMap<String, AbortHandle>>>,
 ) -> anyhow::Result<()> {
     let text = match msg.text() {
         Some(t) => t.to_string(),
@@ -64,8 +65,28 @@ async fn handle_message(
     };
 
     let key = ConversationKey::from_message(&msg);
-
     let chat_id = ChatId(key.chat_id);
+
+    if text == "/new" {
+        if let Some(id) = session_map.get(&key).await {
+            if let Some(handle) = active_subscribers.write().await.remove(&id) {
+                handle.abort();
+            }
+            claude_run::respawn_session(&id, &claude_command, (*claude_config_dir).as_deref(), Some("session renewed"))?;
+
+            let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+            let abort_handle = spawn_output_subscriber(bot.clone(), id.clone(), key.clone(), ready_tx);
+            active_subscribers.write().await.insert(id, abort_handle);
+            let _ = ready_rx.await;
+        }
+        let mut req = bot.send_message(chat_id, "Session renewed.");
+        if let Some(thread_id) = key.thread_id {
+            req = req.message_thread_id(thread_id);
+        }
+        let _ = req.await;
+        return Ok(());
+    }
+
     let mut typing_req = bot.send_chat_action(chat_id, ChatAction::Typing);
     if let Some(thread_id) = key.thread_id {
         typing_req = typing_req.message_thread_id(thread_id);
@@ -89,21 +110,16 @@ async fn handle_message(
         }
     };
 
-    let already_subscribed = active_subscribers.read().await.contains(&session_id);
+    let already_subscribed = active_subscribers.read().await.contains_key(&session_id);
     if !already_subscribed {
-        active_subscribers
-            .write()
-            .await
-            .insert(session_id.clone());
-
         let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
-        spawn_output_subscriber(
+        let abort_handle = spawn_output_subscriber(
             bot,
             session_id.clone(),
             key,
-            active_subscribers,
             ready_tx,
         );
+        active_subscribers.write().await.insert(session_id.clone(), abort_handle);
 
         if is_new_session {
             let _ = ready_rx.await;
@@ -133,10 +149,9 @@ fn spawn_output_subscriber(
     bot: Bot,
     session_id: String,
     key: ConversationKey,
-    active_subscribers: Arc<RwLock<HashSet<String>>>,
     ready_tx: tokio::sync::oneshot::Sender<()>,
-) {
-    tokio::spawn(async move {
+) -> AbortHandle {
+    let handle = tokio::spawn(async move {
         let dir = server::session_dir(&session_id);
         let sock_path = dir.join("output.sock");
 
@@ -151,7 +166,6 @@ fn spawn_output_subscriber(
             Ok(s) => s,
             Err(e) => {
                 log::error!("failed to connect output.sock for {session_id}: {e}");
-                active_subscribers.write().await.remove(&session_id);
                 let _ = ready_tx.send(());
                 return;
             }
@@ -222,7 +236,6 @@ fn spawn_output_subscriber(
         }
 
         typing_handle.abort();
-
-        active_subscribers.write().await.remove(&session_id);
     });
+    handle.abort_handle()
 }

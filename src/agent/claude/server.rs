@@ -247,6 +247,41 @@ pub fn list_sessions() -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn prune_sessions() -> anyhow::Result<()> {
+    let base = PathBuf::from("/tmp/cagent");
+    if !base.exists() {
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(&base)? {
+        let entry = entry?;
+        let sid = entry.file_name().to_string_lossy().to_string();
+        let meta_path = entry.path().join("meta.json");
+        let content = match fs::read_to_string(&meta_path) {
+            Ok(c) => c,
+            Err(_) => {
+                cleanup_session_dir(&sid);
+                println!("removed {sid} (no meta)");
+                continue;
+            }
+        };
+        let meta: SessionMeta = match serde_json::from_str(&content) {
+            Ok(m) => m,
+            Err(_) => {
+                cleanup_session_dir(&sid);
+                println!("removed {sid} (invalid meta)");
+                continue;
+            }
+        };
+
+        unsafe { libc::kill(-(meta.pid as i32), libc::SIGKILL) };
+        cleanup_session_dir(&sid);
+        println!("killed {sid} (pid={})", meta.pid);
+    }
+
+    Ok(())
+}
+
 pub fn kill_session(session_id: &str) -> anyhow::Result<()> {
     let meta_path = session_dir(session_id).join("meta.json");
     if !meta_path.exists() {
@@ -256,9 +291,19 @@ pub fn kill_session(session_id: &str) -> anyhow::Result<()> {
     let meta: SessionMeta = serde_json::from_str(&fs::read_to_string(&meta_path)?)?;
 
     unsafe {
-        libc::kill(meta.pid as i32, libc::SIGTERM);
+        libc::kill(-(meta.pid as i32), libc::SIGKILL);
     }
 
-    println!("sent SIGTERM to session {session_id} (pid={})", meta.pid);
+    println!("killed session {session_id} (pid={})", meta.pid);
     Ok(())
+}
+
+pub fn force_kill_session(session_id: &str) {
+    let meta_path = session_dir(session_id).join("meta.json");
+    if let Ok(content) = fs::read_to_string(&meta_path) {
+        if let Ok(meta) = serde_json::from_str::<SessionMeta>(&content) {
+            unsafe { libc::kill(-(meta.pid as i32), libc::SIGKILL) };
+        }
+    }
+    cleanup_session_dir(session_id);
 }

@@ -1,4 +1,5 @@
 use std::env;
+use std::os::unix::process::CommandExt;
 use std::process::Stdio;
 
 use rand::Rng;
@@ -11,7 +12,16 @@ fn generate_session_id() -> String {
 }
 
 pub fn launch_session(claude_command: &str, claude_config_dir: Option<&str>, initial_prompt: Option<&str>) -> anyhow::Result<String> {
-    let session_id = generate_session_id();
+    spawn_session(&generate_session_id(), claude_command, claude_config_dir, initial_prompt)
+}
+
+pub fn respawn_session(session_id: &str, claude_command: &str, claude_config_dir: Option<&str>, initial_prompt: Option<&str>) -> anyhow::Result<String> {
+    server::force_kill_session(session_id);
+    spawn_session(session_id, claude_command, claude_config_dir, initial_prompt)
+}
+
+fn spawn_session(session_id: &str, claude_command: &str, claude_config_dir: Option<&str>, initial_prompt: Option<&str>) -> anyhow::Result<String> {
+    let session_id = session_id.to_string();
 
     server::create_session_dir(&session_id)?;
 
@@ -29,6 +39,7 @@ pub fn launch_session(claude_command: &str, claude_config_dir: Option<&str>, ini
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
+        .process_group(0)
         .spawn()?;
 
     Ok(session_id)

@@ -36,6 +36,7 @@ enum Commands {
 enum AgentCommands {
     Claude,
     List,
+    Prune,
     Kill { session_id: String },
     Subscribe { session_id: String },
     Attach { session_id: String },
@@ -56,6 +57,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Agent { command } => match command {
             AgentCommands::Claude => agent::claude::run::launch().await?,
             AgentCommands::List => agent::claude::server::list_sessions()?,
+            AgentCommands::Prune => agent::claude::server::prune_sessions()?,
             AgentCommands::Kill { session_id } => {
                 agent::claude::server::kill_session(&session_id)?
             }
