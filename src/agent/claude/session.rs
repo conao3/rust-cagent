@@ -50,10 +50,15 @@ pub enum ContentBlock {
 }
 
 fn session_dir(cwd: &Path) -> anyhow::Result<PathBuf> {
-    let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("HOME not found"))?;
+    let base = match std::env::var("CLAUDE_CONFIG_DIR") {
+        Ok(dir) => PathBuf::from(dir),
+        Err(_) => dirs::home_dir()
+            .ok_or_else(|| anyhow::anyhow!("HOME not found"))?
+            .join(".claude"),
+    };
     let cwd_str = cwd.to_string_lossy();
-    let hash = cwd_str.replace('/', "-");
-    Ok(home.join(".claude").join("projects").join(hash))
+    let hash = cwd_str.replace('/', "-").replace('.', "-");
+    Ok(base.join("projects").join(hash))
 }
 
 pub fn watch_session(
