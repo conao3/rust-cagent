@@ -2,10 +2,21 @@ use std::path::PathBuf;
 
 use serde::Deserialize;
 
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AgentType {
+    #[default]
+    Claude,
+    Codex,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct Config {
+    #[serde(default)]
+    pub agent: AgentType,
     pub claude_command: Option<String>,
     pub claude_config_dir: Option<PathBuf>,
+    pub codex_command: Option<String>,
     pub telegram: TelegramConfig,
 }
 

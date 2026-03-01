@@ -35,11 +35,20 @@ enum Commands {
         initial_prompt: Option<String>,
         session_id: String,
     },
+    #[command(hide = true)]
+    CodexDaemon {
+        #[arg(long, default_value = "codex")]
+        codex_command: String,
+        #[arg(long)]
+        initial_prompt: Option<String>,
+        session_id: String,
+    },
 }
 
 #[derive(Subcommand)]
 enum AgentCommands {
     Claude,
+    Codex,
     List,
     Prune,
     Kill { session_id: String },
@@ -75,6 +84,7 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::Agent { command } => match command {
             AgentCommands::Claude => agent::claude::run::launch().await?,
+            AgentCommands::Codex => agent::codex::run::launch().await?,
             AgentCommands::List => agent::claude::server::list_sessions()?,
             AgentCommands::Prune => agent::claude::server::prune_sessions()?,
             AgentCommands::Kill { session_id } => {
@@ -110,6 +120,9 @@ async fn main() -> anyhow::Result<()> {
         },
         Commands::Daemon { session_id, claude_command, claude_config_dir, initial_prompt } => {
             agent::claude::run::run_daemon(&session_id, &claude_command, claude_config_dir.as_deref(), initial_prompt.as_deref()).await?
+        }
+        Commands::CodexDaemon { session_id, codex_command, initial_prompt } => {
+            agent::codex::run::run_daemon(&session_id, &codex_command, initial_prompt.as_deref()).await?
         }
     }
     Ok(())

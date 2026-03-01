@@ -5,10 +5,10 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc as std_mpsc;
 
 use notify::{EventKind, RecursiveMode, Watcher};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum SessionMessage {
     #[serde(rename = "queue_operation")]
@@ -28,14 +28,14 @@ pub enum SessionMessage {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct MessageBody {
     #[serde(default)]
     pub content: Vec<ContentBlock>,
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
     Text { text: String },

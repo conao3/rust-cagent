@@ -10,8 +10,9 @@ use tokio::sync::RwLock;
 use tokio::task::AbortHandle;
 
 use crate::agent::claude::{run as claude_run, server, session};
+use crate::agent::codex::run as codex_run;
 
-use super::config;
+use super::config::{self, AgentType};
 use super::format;
 use super::mapping::{ConversationKey, SessionMap};
 
@@ -22,11 +23,15 @@ pub async fn start() -> anyhow::Result<()> {
         std::env::set_current_dir(wd)?;
     }
 
+    let agent_type: Arc<AgentType> = Arc::new(cfg.agent);
     let claude_command: Arc<String> = Arc::new(
         cfg.claude_command.unwrap_or_else(|| "claude".to_string()),
     );
     let claude_config_dir: Arc<Option<String>> = Arc::new(
         cfg.claude_config_dir.map(|p| p.to_string_lossy().into_owned()),
+    );
+    let codex_command: Arc<String> = Arc::new(
+        cfg.codex_command.unwrap_or_else(|| "codex".to_string()),
     );
 
     let bot = Bot::new(&cfg.telegram.token);
@@ -37,8 +42,10 @@ pub async fn start() -> anyhow::Result<()> {
 
     Dispatcher::builder(bot.clone(), handler)
         .dependencies(dptree::deps![
+            agent_type,
             claude_command,
             claude_config_dir,
+            codex_command,
             session_map,
             active_subscribers,
             bot.clone()
@@ -51,11 +58,28 @@ pub async fn start() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn dispatch_launch(agent_type: &AgentType, claude_command: &str, claude_config_dir: Option<&str>, codex_command: &str, initial_prompt: Option<&str>) -> anyhow::Result<String> {
+    match agent_type {
+        AgentType::Claude => claude_run::launch_session(claude_command, claude_config_dir, initial_prompt),
+        AgentType::Codex => codex_run::launch_session(codex_command, initial_prompt),
+    }
+}
+
+fn dispatch_respawn(agent_type: &AgentType, session_id: &str, claude_command: &str, claude_config_dir: Option<&str>, codex_command: &str, initial_prompt: Option<&str>) -> anyhow::Result<String> {
+    match agent_type {
+        AgentType::Claude => claude_run::respawn_session(session_id, claude_command, claude_config_dir, initial_prompt),
+        AgentType::Codex => codex_run::respawn_session(session_id, codex_command, initial_prompt),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn handle_message(
     bot: Bot,
     msg: Message,
+    agent_type: Arc<AgentType>,
     claude_command: Arc<String>,
     claude_config_dir: Arc<Option<String>>,
+    codex_command: Arc<String>,
     session_map: SessionMap,
     active_subscribers: Arc<RwLock<HashMap<String, AbortHandle>>>,
 ) -> anyhow::Result<()> {
@@ -72,7 +96,7 @@ async fn handle_message(
             if let Some(handle) = active_subscribers.write().await.remove(&id) {
                 handle.abort();
             }
-            claude_run::respawn_session(&id, &claude_command, (*claude_config_dir).as_deref(), Some("session renewed"))?;
+            dispatch_respawn(&agent_type, &id, &claude_command, (*claude_config_dir).as_deref(), &codex_command, Some("session renewed"))?;
 
             let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
             let abort_handle = spawn_output_subscriber(bot.clone(), id.clone(), key.clone(), ready_tx);
@@ -103,7 +127,7 @@ async fn handle_message(
             if existing.is_some() {
                 session_map.remove(&key).await;
             }
-            let id = claude_run::launch_session(&claude_command, (*claude_config_dir).as_deref(), Some(&text))?;
+            let id = dispatch_launch(&agent_type, &claude_command, (*claude_config_dir).as_deref(), &codex_command, Some(&text))?;
             session_map.insert(key.clone(), id.clone()).await;
             is_new_session = true;
             id
