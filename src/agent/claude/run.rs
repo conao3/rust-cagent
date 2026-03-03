@@ -1,8 +1,8 @@
 use std::env;
-use std::os::unix::process::CommandExt;
-use std::process::Stdio;
 
 use rand::Rng;
+
+use crate::agent::server as launcher_server;
 
 use super::{pty, server, session};
 
@@ -25,22 +25,15 @@ fn spawn_session(session_id: &str, claude_command: &str, claude_config_dir: Opti
 
     server::create_session_dir(&session_id)?;
 
-    let mut args = vec!["daemon", "--claude-command", claude_command];
+    let mut args = vec!["claude-server".to_string(), "--claude-command".to_string(), claude_command.to_string()];
     if let Some(dir) = claude_config_dir {
-        args.extend(["--claude-config-dir", dir]);
+        args.extend(["--claude-config-dir".to_string(), dir.to_string()]);
     }
     if let Some(prompt) = initial_prompt {
-        args.extend(["--initial-prompt", prompt]);
+        args.extend(["--initial-prompt".to_string(), prompt.to_string()]);
     }
-    args.push(&session_id);
-
-    std::process::Command::new(env::current_exe()?)
-        .args(&args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .process_group(0)
-        .spawn()?;
+    args.push(session_id.clone());
+    launcher_server::spawn_via_server(args)?;
 
     Ok(session_id)
 }
@@ -51,7 +44,7 @@ pub async fn launch() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn run_daemon(session_id: &str, claude_command: &str, claude_config_dir: Option<&str>, initial_prompt: Option<&str>) -> anyhow::Result<()> {
+pub async fn run_server(session_id: &str, claude_command: &str, claude_config_dir: Option<&str>, initial_prompt: Option<&str>) -> anyhow::Result<()> {
     let cwd = env::current_dir()?;
 
     let session_dir = server::session_dir(session_id);

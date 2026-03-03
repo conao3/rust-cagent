@@ -17,6 +17,7 @@ enum Commands {
         #[command(subcommand)]
         command: AgentCommands,
     },
+    Server,
     Telegram {
         #[command(subcommand)]
         command: TelegramCommands,
@@ -26,7 +27,7 @@ enum Commands {
         command: CronCommands,
     },
     #[command(hide = true)]
-    Daemon {
+    ClaudeServer {
         #[arg(long, default_value = "claude")]
         claude_command: String,
         #[arg(long)]
@@ -36,7 +37,7 @@ enum Commands {
         session_id: String,
     },
     #[command(hide = true)]
-    CodexDaemon {
+    CodexServer {
         #[arg(long, default_value = "codex")]
         codex_command: String,
         #[arg(long)]
@@ -100,6 +101,7 @@ async fn main() -> anyhow::Result<()> {
                 agent::claude::send::run(&session_id, &prompt)?
             }
         },
+        Commands::Server => agent::server::run_server().await?,
         Commands::Telegram { command } => match command {
             TelegramCommands::Start => telegram::bot::start().await?,
         },
@@ -118,11 +120,11 @@ async fn main() -> anyhow::Result<()> {
                 println!("removed: {}", job_id);
             }
         },
-        Commands::Daemon { session_id, claude_command, claude_config_dir, initial_prompt } => {
-            agent::claude::run::run_daemon(&session_id, &claude_command, claude_config_dir.as_deref(), initial_prompt.as_deref()).await?
+        Commands::ClaudeServer { session_id, claude_command, claude_config_dir, initial_prompt } => {
+            agent::claude::run::run_server(&session_id, &claude_command, claude_config_dir.as_deref(), initial_prompt.as_deref()).await?
         }
-        Commands::CodexDaemon { session_id, codex_command, initial_prompt } => {
-            agent::codex::run::run_daemon(&session_id, &codex_command, initial_prompt.as_deref()).await?
+        Commands::CodexServer { session_id, codex_command, initial_prompt } => {
+            agent::codex::run::run_server(&session_id, &codex_command, initial_prompt.as_deref()).await?
         }
     }
     Ok(())

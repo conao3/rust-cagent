@@ -1,11 +1,10 @@
 use std::env;
 use std::io::{BufRead, BufReader};
 use std::os::unix::fs::OpenOptionsExt;
-use std::os::unix::process::CommandExt;
-use std::process::Stdio;
 
 use rand::Rng;
 
+use crate::agent::server as launcher_server;
 use crate::agent::claude::{server, session};
 
 use super::client::CodexClient;
@@ -30,19 +29,12 @@ fn spawn_session(session_id: &str, codex_command: &str, initial_prompt: Option<&
 
     server::create_session_dir(&session_id)?;
 
-    let mut args = vec!["codex-daemon", "--codex-command", codex_command];
+    let mut args = vec!["codex-server".to_string(), "--codex-command".to_string(), codex_command.to_string()];
     if let Some(prompt) = initial_prompt {
-        args.extend(["--initial-prompt", prompt]);
+        args.extend(["--initial-prompt".to_string(), prompt.to_string()]);
     }
-    args.push(&session_id);
-
-    std::process::Command::new(env::current_exe()?)
-        .args(&args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .process_group(0)
-        .spawn()?;
+    args.push(session_id.clone());
+    launcher_server::spawn_via_server(args)?;
 
     Ok(session_id)
 }
@@ -100,7 +92,7 @@ fn emit_session_message(
     }
 }
 
-pub async fn run_daemon(session_id: &str, codex_command: &str, initial_prompt: Option<&str>) -> anyhow::Result<()> {
+pub async fn run_server(session_id: &str, codex_command: &str, initial_prompt: Option<&str>) -> anyhow::Result<()> {
     let cwd = env::current_dir()?;
 
     let session_dir = server::session_dir(session_id);
