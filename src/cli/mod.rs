@@ -1,7 +1,6 @@
 pub mod agent;
-pub mod internal_claude_wrapper;
-pub mod internal_codex_wrapper;
 pub mod cron;
+pub mod internal;
 pub mod server;
 pub mod telegram;
 
@@ -30,9 +29,10 @@ enum Commands {
         command: cron::CronCommand,
     },
     #[command(hide = true)]
-    InternalClaudeWrapper(internal_claude_wrapper::InternalClaudeWrapperArgs),
-    #[command(hide = true)]
-    InternalCodexWrapper(internal_codex_wrapper::InternalCodexWrapperArgs),
+    Internal {
+        #[command(subcommand)]
+        command: internal::InternalCommand,
+    },
 }
 
 pub async fn run() -> anyhow::Result<()> {
@@ -42,8 +42,7 @@ pub async fn run() -> anyhow::Result<()> {
         Commands::Server => server::run().await?,
         Commands::Telegram { command } => telegram::run(command).await?,
         Commands::Cron { command } => cron::run(command).await?,
-        Commands::InternalClaudeWrapper(args) => internal_claude_wrapper::run(args).await?,
-        Commands::InternalCodexWrapper(args) => internal_codex_wrapper::run(args).await?,
+        Commands::Internal { command } => internal::run(command).await?,
     }
     Ok(())
 }
@@ -78,20 +77,24 @@ mod tests {
     fn parses_hidden_internal_claude_wrapper_command() {
         let cli = Cli::try_parse_from([
             "cagent",
-            "internal-claude-wrapper",
+            "internal",
+            "claude-wrapper",
             "--claude-command",
             "claude",
             "--initial-prompt",
             "hi",
             "1234abcd",
         ])
-        .expect("parse hidden internal-claude-wrapper");
+        .expect("parse hidden internal claude-wrapper");
         match cli.command {
-            Commands::InternalClaudeWrapper(args) => {
-                assert_eq!(args.session_id, "1234abcd");
-                assert_eq!(args.claude_command, "claude");
-                assert_eq!(args.initial_prompt.as_deref(), Some("hi"));
-            }
+            Commands::Internal { command } => match command {
+                internal::InternalCommand::ClaudeWrapper(args) => {
+                    assert_eq!(args.session_id, "1234abcd");
+                    assert_eq!(args.claude_command, "claude");
+                    assert_eq!(args.initial_prompt.as_deref(), Some("hi"));
+                }
+                _ => panic!("unexpected internal command"),
+            },
             _ => panic!("unexpected command"),
         }
     }
@@ -100,20 +103,24 @@ mod tests {
     fn parses_hidden_internal_codex_wrapper_command() {
         let cli = Cli::try_parse_from([
             "cagent",
-            "internal-codex-wrapper",
+            "internal",
+            "codex-wrapper",
             "--codex-command",
             "codex",
             "--initial-prompt",
             "hi",
             "1234abcd",
         ])
-        .expect("parse hidden internal-codex-wrapper");
+        .expect("parse hidden internal codex-wrapper");
         match cli.command {
-            Commands::InternalCodexWrapper(args) => {
-                assert_eq!(args.session_id, "1234abcd");
-                assert_eq!(args.codex_command, "codex");
-                assert_eq!(args.initial_prompt.as_deref(), Some("hi"));
-            }
+            Commands::Internal { command } => match command {
+                internal::InternalCommand::CodexWrapper(args) => {
+                    assert_eq!(args.session_id, "1234abcd");
+                    assert_eq!(args.codex_command, "codex");
+                    assert_eq!(args.initial_prompt.as_deref(), Some("hi"));
+                }
+                _ => panic!("unexpected internal command"),
+            },
             _ => panic!("unexpected command"),
         }
     }
