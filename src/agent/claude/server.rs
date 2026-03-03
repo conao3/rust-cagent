@@ -51,7 +51,7 @@ pub fn start_fifo_reader(fifo_path: &Path, input_tx: std_mpsc::Sender<Vec<u8>>) 
         {
             Ok(f) => f,
             Err(e) => {
-                log::error!("failed to open FIFO: {e}");
+                tracing::error!("failed to open FIFO: {e}");
                 return;
             }
         };
@@ -108,7 +108,7 @@ pub fn start_broadcast_server(
         let listener = match UnixListener::bind(&sock_path) {
             Ok(l) => l,
             Err(e) => {
-                log::error!("failed to bind unix socket: {e}");
+                tracing::error!("failed to bind unix socket: {e}");
                 return;
             }
         };
@@ -131,7 +131,7 @@ pub fn start_broadcast_server(
                         });
                     }
                     Err(e) => {
-                        log::warn!("unix socket accept error: {e}");
+                        tracing::warn!("unix socket accept error: {e}");
                     }
                 }
             }
@@ -160,7 +160,7 @@ pub fn start_pty_server(
         let listener = match UnixListener::bind(&sock_path) {
             Ok(l) => l,
             Err(e) => {
-                log::error!("failed to bind pty socket: {e}");
+                tracing::error!("failed to bind pty socket: {e}");
                 return;
             }
         };
@@ -181,7 +181,7 @@ pub fn start_pty_server(
                         });
                     }
                     Err(e) => {
-                        log::warn!("pty socket accept error: {e}");
+                        tracing::warn!("pty socket accept error: {e}");
                     }
                 }
             }

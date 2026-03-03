@@ -56,7 +56,7 @@ fn start_fifo_line_reader(fifo_path: &std::path::Path, tx: tokio::sync::mpsc::Un
         {
             Ok(f) => f,
             Err(e) => {
-                log::error!("failed to open FIFO: {e}");
+                tracing::error!("failed to open FIFO: {e}");
                 return;
             }
         };
@@ -105,7 +105,7 @@ pub async fn run_server(session_id: &str, codex_command: &str, initial_prompt: O
     client.initialize().await?;
     let thread_id = client.thread_start().await?;
 
-    log::info!("codex thread started: {thread_id}");
+    tracing::info!("codex thread started: {thread_id}");
 
     let (prompt_tx, mut prompt_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
     start_fifo_line_reader(&fifo_path, prompt_tx.clone());
@@ -130,7 +130,7 @@ pub async fn run_server(session_id: &str, codex_command: &str, initial_prompt: O
         });
 
         if let Err(e) = client.turn_start(&thread_id, &prompt).await {
-            log::error!("turn_start failed: {e}");
+            tracing::error!("turn_start failed: {e}");
             break;
         }
 
@@ -175,11 +175,11 @@ pub async fn run_server(session_id: &str, codex_command: &str, initial_prompt: O
                 }
                 Ok(Some(_)) => {}
                 Ok(None) => {
-                    log::info!("codex stdout closed");
+                    tracing::info!("codex stdout closed");
                     break;
                 }
                 Err(e) => {
-                    log::error!("read notification error: {e}");
+                    tracing::error!("read notification error: {e}");
                     break;
                 }
             }

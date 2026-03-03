@@ -189,7 +189,7 @@ fn spawn_output_subscriber(
         let stream = match UnixStream::connect(&sock_path).await {
             Ok(s) => s,
             Err(e) => {
-                log::error!("failed to connect output.sock for {session_id}: {e}");
+                tracing::error!("failed to connect output.sock for {session_id}: {e}");
                 let _ = ready_tx.send(());
                 return;
             }
@@ -254,7 +254,7 @@ fn spawn_output_subscriber(
                     req = req.message_thread_id(thread_id);
                 }
                 if let Err(e) = req.await {
-                    log::error!("failed to send telegram message: {e}");
+                    tracing::error!("failed to send telegram message: {e}");
                 }
             }
         }

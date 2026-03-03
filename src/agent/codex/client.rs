@@ -42,7 +42,7 @@ impl CodexClient {
         let req = JsonRpcRequest { id, method, params };
         let mut line = serde_json::to_string(&req)?;
         line.push('\n');
-        log::debug!("codex send: {}", line.trim());
+        tracing::debug!("codex send: {}", line.trim());
         self.writer.write_all(line.as_bytes()).await?;
         self.writer.flush().await?;
 
@@ -50,7 +50,7 @@ impl CodexClient {
             let raw = self.reader.next_line().await?
                 .ok_or_else(|| anyhow::anyhow!("codex stdout closed while waiting for response to {method}"))?;
 
-            log::debug!("codex recv (waiting for id={id}): {raw}");
+            tracing::debug!("codex recv (waiting for id={id}): {raw}");
 
             if let Ok(resp) = serde_json::from_str::<JsonRpcResponse>(&raw)
                 && resp.id == id {
@@ -116,7 +116,7 @@ impl CodexClient {
             Some(l) => l,
             None => return Ok(None),
         };
-        log::debug!("codex notification: {raw}");
+        tracing::debug!("codex notification: {raw}");
         Ok(Notification::parse(&raw))
     }
 

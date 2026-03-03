@@ -119,9 +119,9 @@ pub async fn run_server() -> anyhow::Result<()> {
     }
     let listener = UnixListener::bind(&sock)?;
 
-    println!("server started pid={}", std::process::id());
-    println!("pid file: {}", pid_path.display());
-    println!("socket: {}", sock.display());
+    tracing::info!("server started pid={}", std::process::id());
+    tracing::info!("pid file: {}", pid_path.display());
+    tracing::info!("socket: {}", sock.display());
 
     loop {
         let (mut stream, _) = listener.accept().await?;

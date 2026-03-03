@@ -65,7 +65,7 @@ pub async fn run_server(session_id: &str, claude_command: &str, claude_config_di
     let session_config_dir = claude_config_dir.map(std::path::PathBuf::from);
     tokio::task::spawn_blocking(move || {
         if let Err(e) = session::watch_session(&session_cwd, session_config_dir, session_tx) {
-            log::error!("session watcher error: {e}");
+            tracing::error!("session watcher error: {e}");
         }
     });
 
@@ -73,9 +73,9 @@ pub async fn run_server(session_id: &str, claude_command: &str, claude_config_di
 
     let mut child_exited = handle.child_exited;
     match (&mut child_exited).await {
-        Ok(Ok(code)) => log::info!("claude exited with code {code}"),
-        Ok(Err(e)) => log::error!("claude wait error: {e}"),
-        Err(_) => log::error!("child_exited channel dropped"),
+        Ok(Ok(code)) => tracing::info!("claude exited with code {code}"),
+        Ok(Err(e)) => tracing::error!("claude wait error: {e}"),
+        Err(_) => tracing::error!("child_exited channel dropped"),
     }
 
     server::cleanup_session_dir(session_id);

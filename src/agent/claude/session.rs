@@ -117,7 +117,7 @@ pub fn watch_session(
     tx: tokio::sync::mpsc::UnboundedSender<String>,
 ) -> anyhow::Result<()> {
     let dir = session_dir(cwd, claude_config_dir.as_deref())?;
-    log::info!("watching session dir: {}", dir.display());
+    tracing::info!("watching session dir: {}", dir.display());
 
     if !dir.exists() {
         fs::create_dir_all(&dir)?;
@@ -140,7 +140,7 @@ pub fn watch_session(
         let event = match event {
             Ok(e) => e,
             Err(e) => {
-                log::warn!("notify error: {e}");
+                tracing::warn!("notify error: {e}");
                 continue;
             }
         };
@@ -160,7 +160,7 @@ pub fn watch_session(
             }
 
             if target_file.is_none() {
-                log::info!("tracking new session file: {}", path.display());
+                tracing::info!("tracking new session file: {}", path.display());
                 target_file = Some(path.clone());
             } else if target_file.as_ref() != Some(&path) {
                 continue;
@@ -170,7 +170,7 @@ pub fn watch_session(
             let mut file = match fs::File::open(&path) {
                 Ok(f) => f,
                 Err(e) => {
-                    log::warn!("failed to open {}: {e}", path.display());
+                    tracing::warn!("failed to open {}: {e}", path.display());
                     continue;
                 }
             };

@@ -22,7 +22,7 @@ pub async fn run(session_id: &str) -> anyhow::Result<()> {
         let mut fifo = match std::fs::OpenOptions::new().write(true).open(&fifo_path) {
             Ok(f) => f,
             Err(e) => {
-                eprintln!("failed to open FIFO for writing: {e}");
+                tracing::error!("failed to open FIFO for writing: {e}");
                 return;
             }
         };
