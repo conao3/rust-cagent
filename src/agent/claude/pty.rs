@@ -6,33 +6,6 @@ use std::sync::mpsc;
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use tokio::sync::oneshot;
 
-pub struct RawModeGuard {
-    original: libc::termios,
-}
-
-impl RawModeGuard {
-    pub fn enter() -> anyhow::Result<Self> {
-        let mut original = unsafe { MaybeUninit::<libc::termios>::zeroed().assume_init() };
-        if unsafe { libc::tcgetattr(libc::STDIN_FILENO, &mut original) } != 0 {
-            anyhow::bail!("tcgetattr failed");
-        }
-        let mut raw = original;
-        unsafe { libc::cfmakeraw(&mut raw) };
-        if unsafe { libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &raw) } != 0 {
-            anyhow::bail!("tcsetattr failed");
-        }
-        Ok(Self { original })
-    }
-}
-
-impl Drop for RawModeGuard {
-    fn drop(&mut self) {
-        unsafe {
-            libc::tcsetattr(libc::STDIN_FILENO, libc::TCSANOW, &self.original);
-        }
-    }
-}
-
 fn terminal_size() -> PtySize {
     let mut ws = unsafe { MaybeUninit::<libc::winsize>::zeroed().assume_init() };
     if unsafe { libc::ioctl(libc::STDOUT_FILENO, libc::TIOCGWINSZ, &mut ws) } != 0 {

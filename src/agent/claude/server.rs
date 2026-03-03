@@ -6,7 +6,6 @@ use std::sync::mpsc as std_mpsc;
 
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
-use tokio::net::UnixListener;
 use tokio::sync::broadcast;
 
 #[derive(Serialize, Deserialize)]
@@ -144,54 +143,6 @@ pub fn start_fifo_broadcast(
     });
 
     broadcast_tx
-}
-
-pub fn start_pty_server(
-    sock_path: PathBuf,
-    mut output_rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
-) {
-    let (broadcast_tx, _) = broadcast::channel::<Vec<u8>>(256);
-    let tx = broadcast_tx.clone();
-
-    tokio::spawn(async move {
-        if sock_path.exists() {
-            let _ = fs::remove_file(&sock_path);
-        }
-
-        let listener = match UnixListener::bind(&sock_path) {
-            Ok(l) => l,
-            Err(e) => {
-                tracing::error!("failed to bind pty socket: {e}");
-                return;
-            }
-        };
-
-        let accept_tx = tx.clone();
-        tokio::spawn(async move {
-            loop {
-                match listener.accept().await {
-                    Ok((stream, _)) => {
-                        let mut rx = accept_tx.subscribe();
-                        tokio::spawn(async move {
-                            let (_, mut writer) = stream.into_split();
-                            while let Ok(data) = rx.recv().await {
-                                if writer.write_all(&data).await.is_err() {
-                                    break;
-                                }
-                            }
-                        });
-                    }
-                    Err(e) => {
-                        tracing::warn!("pty socket accept error: {e}");
-                    }
-                }
-            }
-        });
-
-        while let Some(data) = output_rx.recv().await {
-            let _ = tx.send(data);
-        }
-    });
 }
 
 pub fn cleanup_session_dir(session_id: &str) {

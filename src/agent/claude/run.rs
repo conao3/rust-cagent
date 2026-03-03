@@ -86,7 +86,6 @@ pub async fn run_server(
 ) -> anyhow::Result<()> {
     let cwd = env::current_dir()?;
 
-    let session_dir = server::session_dir(session_id);
     let send_fifo_path = server::message_send_fifo_path(session_id);
     let receive_fifo_path = server::message_receive_fifo_path(session_id);
 
@@ -96,8 +95,7 @@ pub async fn run_server(
 
     server::start_fifo_reader(&send_fifo_path, handle.input_tx.clone());
 
-    let pty_sock_path = session_dir.join("pty.sock");
-    server::start_pty_server(pty_sock_path, handle.output_rx);
+    drop(handle.output_rx);
 
     let (session_tx, session_rx) = tokio::sync::mpsc::unbounded_channel();
     let session_cwd = cwd.clone();
