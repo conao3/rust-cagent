@@ -27,7 +27,7 @@ The server layer is the process supervisor and entrypoint.
 
 ### In Scope
 
-- Process spawning (`internal claude-wrapper`, `internal codex-wrapper`).
+- Process spawning (`agent claude --run`, `agent codex --run`).
 - Child process parent/child relationship management.
 - Lifecycle orchestration only.
 

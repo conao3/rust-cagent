@@ -46,24 +46,20 @@ fn spawn_session(
     server::create_session_dir(&session_id)?;
 
     let mut args = vec![
-        "internal".to_string(),
-        "codex-wrapper".to_string(),
+        "agent".to_string(),
+        "codex".to_string(),
+        "--run".to_string(),
+        "--session-id".to_string(),
+        session_id.clone(),
         "--codex-command".to_string(),
         codex_command.to_string(),
     ];
     if let Some(prompt) = initial_prompt {
         args.extend(["--initial-prompt".to_string(), prompt.to_string()]);
     }
-    args.push(session_id.clone());
     launcher_server::spawn_via_server(args)?;
 
     Ok(session_id)
-}
-
-pub async fn launch() -> anyhow::Result<()> {
-    let session_id = launch_session("codex", None)?;
-    println!("{session_id}");
-    Ok(())
 }
 
 fn start_fifo_line_reader(

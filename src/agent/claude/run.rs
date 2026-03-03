@@ -59,8 +59,11 @@ fn spawn_session(
     server::create_session_dir(&session_id)?;
 
     let mut args = vec![
-        "internal".to_string(),
-        "claude-wrapper".to_string(),
+        "agent".to_string(),
+        "claude".to_string(),
+        "--run".to_string(),
+        "--session-id".to_string(),
+        session_id.clone(),
         "--claude-command".to_string(),
         claude_command.to_string(),
     ];
@@ -70,16 +73,9 @@ fn spawn_session(
     if let Some(prompt) = initial_prompt {
         args.extend(["--initial-prompt".to_string(), prompt.to_string()]);
     }
-    args.push(session_id.clone());
     launcher_server::spawn_via_server(args)?;
 
     Ok(session_id)
-}
-
-pub async fn launch() -> anyhow::Result<()> {
-    let session_id = launch_session("claude", None, None)?;
-    println!("{session_id}");
-    Ok(())
 }
 
 pub async fn run_server(

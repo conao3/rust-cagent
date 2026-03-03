@@ -1,6 +1,5 @@
 pub mod agent;
 pub mod cron;
-pub mod internal;
 
 use clap::{Parser, Subcommand};
 
@@ -22,11 +21,6 @@ pub enum Command {
         #[command(subcommand)]
         command: cron::CronCommand,
     },
-    #[command(hide = true)]
-    Internal {
-        #[command(subcommand)]
-        command: internal::InternalCommand,
-    },
 }
 
 pub fn parse_command() -> Command {
@@ -38,7 +32,6 @@ pub async fn run() -> anyhow::Result<()> {
         Command::Agent { command } => agent::run(command).await?,
         Command::Server => crate::server::run_server().await?,
         Command::Cron { command } => cron::run(command).await?,
-        Command::Internal { command } => internal::run(command).await?,
     }
     Ok(())
 }
@@ -70,52 +63,58 @@ mod tests {
     }
 
     #[test]
-    fn parses_hidden_internal_claude_wrapper_command() {
+    fn parses_agent_claude_run_command() {
         let cli = Cli::try_parse_from([
             "cagent",
-            "internal",
-            "claude-wrapper",
+            "agent",
+            "claude",
+            "--run",
+            "--session-id",
+            "1234abcd",
             "--claude-command",
             "claude",
             "--initial-prompt",
             "hi",
-            "1234abcd",
         ])
-        .expect("parse hidden internal claude-wrapper");
+        .expect("parse agent claude run");
         match cli.command {
-            Command::Internal { command } => match command {
-                internal::InternalCommand::ClaudeWrapper(args) => {
-                    assert_eq!(args.session_id, "1234abcd");
+            Command::Agent { command } => match command {
+                agent::AgentCommand::Claude(args) => {
+                    assert!(args.run);
+                    assert_eq!(args.session_id.as_deref(), Some("1234abcd"));
                     assert_eq!(args.claude_command, "claude");
                     assert_eq!(args.initial_prompt.as_deref(), Some("hi"));
                 }
-                _ => panic!("unexpected internal command"),
+                _ => panic!("unexpected agent command"),
             },
             _ => panic!("unexpected command"),
         }
     }
 
     #[test]
-    fn parses_hidden_internal_codex_wrapper_command() {
+    fn parses_agent_codex_run_command() {
         let cli = Cli::try_parse_from([
             "cagent",
-            "internal",
-            "codex-wrapper",
+            "agent",
+            "codex",
+            "--run",
+            "--session-id",
+            "1234abcd",
             "--codex-command",
             "codex",
             "--initial-prompt",
             "hi",
-            "1234abcd",
         ])
-        .expect("parse hidden internal codex-wrapper");
+        .expect("parse agent codex run");
         match cli.command {
-            Command::Internal { command } => match command {
-                internal::InternalCommand::CodexWrapper(args) => {
-                    assert_eq!(args.session_id, "1234abcd");
+            Command::Agent { command } => match command {
+                agent::AgentCommand::Codex(args) => {
+                    assert!(args.run);
+                    assert_eq!(args.session_id.as_deref(), Some("1234abcd"));
                     assert_eq!(args.codex_command, "codex");
                     assert_eq!(args.initial_prompt.as_deref(), Some("hi"));
                 }
-                _ => panic!("unexpected internal command"),
+                _ => panic!("unexpected agent command"),
             },
             _ => panic!("unexpected command"),
         }
