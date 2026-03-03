@@ -78,10 +78,8 @@ pub fn start_fifo_reader(fifo_path: &Path, input_tx: std_mpsc::Sender<Vec<u8>>) 
                     if send_enter {
                         data.pop();
                     }
-                    if !data.is_empty() {
-                        if input_tx.send(data).is_err() {
-                            break;
-                        }
+                    if !data.is_empty() && input_tx.send(data).is_err() {
+                        break;
                     }
                     if send_enter {
                         std::thread::sleep(std::time::Duration::from_millis(50));
@@ -303,10 +301,10 @@ pub fn kill_session(session_id: &str) -> anyhow::Result<()> {
 
 pub fn force_kill_session(session_id: &str) {
     let meta_path = session_dir(session_id).join("meta.json");
-    if let Ok(content) = fs::read_to_string(&meta_path) {
-        if let Ok(meta) = serde_json::from_str::<SessionMeta>(&content) {
-            unsafe { libc::kill(-(meta.pid as i32), libc::SIGKILL) };
-        }
+    if let Ok(content) = fs::read_to_string(&meta_path)
+        && let Ok(meta) = serde_json::from_str::<SessionMeta>(&content)
+    {
+        unsafe { libc::kill(-(meta.pid as i32), libc::SIGKILL) };
     }
     cleanup_session_dir(session_id);
 }

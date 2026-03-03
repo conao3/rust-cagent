@@ -118,7 +118,7 @@ fn session_dir(cwd: &Path, config_dir: Option<&Path>) -> anyhow::Result<PathBuf>
         None => resolve_claude_config_dir()?,
     };
     let cwd_str = cwd.to_string_lossy();
-    let hash = cwd_str.replace('/', "-").replace('.', "-");
+    let hash = cwd_str.replace(['/', '.'], "-");
     Ok(base.join("projects").join(hash))
 }
 
