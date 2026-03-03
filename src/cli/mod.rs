@@ -1,19 +1,18 @@
 pub mod agent;
 pub mod cron;
 pub mod internal;
-pub mod server;
 
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
 #[command(version, about = "cagent - a CLI agent tool")]
-pub struct Cli {
+struct Cli {
     #[command(subcommand)]
-    command: Commands,
+    command: Command,
 }
 
 #[derive(Subcommand)]
-enum Commands {
+pub enum Command {
     Agent {
         #[command(subcommand)]
         command: agent::AgentCommand,
@@ -30,15 +29,8 @@ enum Commands {
     },
 }
 
-pub async fn run() -> anyhow::Result<()> {
-    let cli = Cli::parse();
-    match cli.command {
-        Commands::Agent { command } => agent::run(command).await?,
-        Commands::Server => server::run().await?,
-        Commands::Cron { command } => cron::run(command).await?,
-        Commands::Internal { command } => internal::run(command).await?,
-    }
-    Ok(())
+pub fn parse_command() -> Command {
+    Cli::parse().command
 }
 
 #[cfg(test)]
@@ -48,7 +40,7 @@ mod tests {
     #[test]
     fn parses_server_command() {
         let cli = Cli::try_parse_from(["cagent", "server"]).expect("parse server");
-        assert!(matches!(cli.command, Commands::Server));
+        assert!(matches!(cli.command, Command::Server));
     }
 
     #[test]
@@ -56,7 +48,7 @@ mod tests {
         let cli = Cli::try_parse_from(["cagent", "agent", "send", "deadbeef", "hello"])
             .expect("parse agent send");
         match cli.command {
-            Commands::Agent { command } => match command {
+            Command::Agent { command } => match command {
                 agent::AgentCommand::Send { session_id, prompt } => {
                     assert_eq!(session_id, "deadbeef");
                     assert_eq!(prompt, "hello");
@@ -81,7 +73,7 @@ mod tests {
         ])
         .expect("parse hidden internal claude-wrapper");
         match cli.command {
-            Commands::Internal { command } => match command {
+            Command::Internal { command } => match command {
                 internal::InternalCommand::ClaudeWrapper(args) => {
                     assert_eq!(args.session_id, "1234abcd");
                     assert_eq!(args.claude_command, "claude");
@@ -107,7 +99,7 @@ mod tests {
         ])
         .expect("parse hidden internal codex-wrapper");
         match cli.command {
-            Commands::Internal { command } => match command {
+            Command::Internal { command } => match command {
                 internal::InternalCommand::CodexWrapper(args) => {
                     assert_eq!(args.session_id, "1234abcd");
                     assert_eq!(args.codex_command, "codex");
