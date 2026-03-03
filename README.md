@@ -26,7 +26,7 @@ cagent server
 
 - Stop with `Ctrl-C` (default process behavior; no custom signal handling)
 - PID file: `${XDG_STATE_HOME:-~/.local/state}/cagent/server-pid`
-- Unix socket: `${XDG_STATE_HOME:-~/.local/state}/cagent/server.sock`
+- REST endpoint: `http://127.0.0.1:45931`
 
 ### 2. Create a session
 
