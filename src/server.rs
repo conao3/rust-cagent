@@ -161,7 +161,28 @@ pub async fn run_server() -> anyhow::Result<()> {
     tracing::info!("pid file: {}", pid_path.display());
     tracing::info!("listen: http://{}", server_addr());
 
-    axum::serve(listener, app).await?;
+    let mut telegram_task = tokio::spawn(async { crate::telegram::bot::start().await });
+    let mut api_task = tokio::spawn(async move { axum::serve(listener, app).await });
+
+    tokio::select! {
+        res = &mut api_task => {
+            telegram_task.abort();
+            match res {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => anyhow::bail!("api server failed: {e}"),
+                Err(e) => anyhow::bail!("api task join error: {e}"),
+            }
+        }
+        res = &mut telegram_task => {
+            api_task.abort();
+            match res {
+                Ok(Ok(())) => anyhow::bail!("telegram bot stopped unexpectedly"),
+                Ok(Err(e)) => anyhow::bail!("telegram bot failed: {e}"),
+                Err(e) => anyhow::bail!("telegram task join error: {e}"),
+            }
+        }
+    }
+
     Ok(())
 }
 

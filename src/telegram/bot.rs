@@ -50,7 +50,6 @@ pub async fn start() -> anyhow::Result<()> {
             active_subscribers,
             bot.clone()
         ])
-        .enable_ctrlc_handler()
         .build()
         .dispatch()
         .await;

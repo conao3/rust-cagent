@@ -27,6 +27,7 @@ cagent server
 - Stop with `Ctrl-C` (default process behavior; no custom signal handling)
 - PID file: `${XDG_STATE_HOME:-~/.local/state}/cagent/server-pid`
 - REST endpoint: `http://127.0.0.1:45931`
+- Telegram bot responder is also started by this command.
 
 ### 2. Create a session
 
@@ -66,11 +67,7 @@ token = "<BOT_TOKEN>"
 # working_dir = "/path/to/workdir"
 ```
 
-Start:
-
-```bash
-cagent telegram start
-```
+Telegram responses are served by `cagent server`.
 
 ## Cron subcommands
 

@@ -2,7 +2,6 @@ pub mod agent;
 pub mod cron;
 pub mod internal;
 pub mod server;
-pub mod telegram;
 
 use clap::{Parser, Subcommand};
 
@@ -20,10 +19,6 @@ enum Commands {
         command: agent::AgentCommand,
     },
     Server,
-    Telegram {
-        #[command(subcommand)]
-        command: telegram::TelegramCommand,
-    },
     Cron {
         #[command(subcommand)]
         command: cron::CronCommand,
@@ -40,7 +35,6 @@ pub async fn run() -> anyhow::Result<()> {
     match cli.command {
         Commands::Agent { command } => agent::run(command).await?,
         Commands::Server => server::run().await?,
-        Commands::Telegram { command } => telegram::run(command).await?,
         Commands::Cron { command } => cron::run(command).await?,
         Commands::Internal { command } => internal::run(command).await?,
     }
