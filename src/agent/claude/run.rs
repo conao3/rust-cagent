@@ -11,21 +11,49 @@ fn generate_session_id() -> String {
     format!("{:08x}", rng.random::<u32>())
 }
 
-pub fn launch_session(claude_command: &str, claude_config_dir: Option<&str>, initial_prompt: Option<&str>) -> anyhow::Result<String> {
-    spawn_session(&generate_session_id(), claude_command, claude_config_dir, initial_prompt)
+pub fn launch_session(
+    claude_command: &str,
+    claude_config_dir: Option<&str>,
+    initial_prompt: Option<&str>,
+) -> anyhow::Result<String> {
+    spawn_session(
+        &generate_session_id(),
+        claude_command,
+        claude_config_dir,
+        initial_prompt,
+    )
 }
 
-pub fn respawn_session(session_id: &str, claude_command: &str, claude_config_dir: Option<&str>, initial_prompt: Option<&str>) -> anyhow::Result<String> {
+pub fn respawn_session(
+    session_id: &str,
+    claude_command: &str,
+    claude_config_dir: Option<&str>,
+    initial_prompt: Option<&str>,
+) -> anyhow::Result<String> {
     server::force_kill_session(session_id);
-    spawn_session(session_id, claude_command, claude_config_dir, initial_prompt)
+    spawn_session(
+        session_id,
+        claude_command,
+        claude_config_dir,
+        initial_prompt,
+    )
 }
 
-fn spawn_session(session_id: &str, claude_command: &str, claude_config_dir: Option<&str>, initial_prompt: Option<&str>) -> anyhow::Result<String> {
+fn spawn_session(
+    session_id: &str,
+    claude_command: &str,
+    claude_config_dir: Option<&str>,
+    initial_prompt: Option<&str>,
+) -> anyhow::Result<String> {
     let session_id = session_id.to_string();
 
     server::create_session_dir(&session_id)?;
 
-    let mut args = vec!["claude-server".to_string(), "--claude-command".to_string(), claude_command.to_string()];
+    let mut args = vec![
+        "claude-server".to_string(),
+        "--claude-command".to_string(),
+        claude_command.to_string(),
+    ];
     if let Some(dir) = claude_config_dir {
         args.extend(["--claude-config-dir".to_string(), dir.to_string()]);
     }
@@ -44,7 +72,12 @@ pub async fn launch() -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn run_server(session_id: &str, claude_command: &str, claude_config_dir: Option<&str>, initial_prompt: Option<&str>) -> anyhow::Result<()> {
+pub async fn run_server(
+    session_id: &str,
+    claude_command: &str,
+    claude_config_dir: Option<&str>,
+    initial_prompt: Option<&str>,
+) -> anyhow::Result<()> {
     let cwd = env::current_dir()?;
 
     let session_dir = server::session_dir(session_id);

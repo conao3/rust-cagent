@@ -24,19 +24,19 @@ pub async fn start() -> anyhow::Result<()> {
     }
 
     let agent_type: Arc<AgentType> = Arc::new(cfg.agent);
-    let claude_command: Arc<String> = Arc::new(
-        cfg.claude_command.unwrap_or_else(|| "claude".to_string()),
-    );
+    let claude_command: Arc<String> =
+        Arc::new(cfg.claude_command.unwrap_or_else(|| "claude".to_string()));
     let claude_config_dir: Arc<Option<String>> = Arc::new(
-        cfg.claude_config_dir.map(|p| p.to_string_lossy().into_owned()),
+        cfg.claude_config_dir
+            .map(|p| p.to_string_lossy().into_owned()),
     );
-    let codex_command: Arc<String> = Arc::new(
-        cfg.codex_command.unwrap_or_else(|| "codex".to_string()),
-    );
+    let codex_command: Arc<String> =
+        Arc::new(cfg.codex_command.unwrap_or_else(|| "codex".to_string()));
 
     let bot = Bot::new(&cfg.telegram.token);
     let session_map = SessionMap::load();
-    let active_subscribers: Arc<RwLock<HashMap<String, AbortHandle>>> = Arc::new(RwLock::new(HashMap::new()));
+    let active_subscribers: Arc<RwLock<HashMap<String, AbortHandle>>> =
+        Arc::new(RwLock::new(HashMap::new()));
 
     let handler = Update::filter_message().endpoint(handle_message);
 
@@ -58,16 +58,36 @@ pub async fn start() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn dispatch_launch(agent_type: &AgentType, claude_command: &str, claude_config_dir: Option<&str>, codex_command: &str, initial_prompt: Option<&str>) -> anyhow::Result<String> {
+fn dispatch_launch(
+    agent_type: &AgentType,
+    claude_command: &str,
+    claude_config_dir: Option<&str>,
+    codex_command: &str,
+    initial_prompt: Option<&str>,
+) -> anyhow::Result<String> {
     match agent_type {
-        AgentType::Claude => claude_run::launch_session(claude_command, claude_config_dir, initial_prompt),
+        AgentType::Claude => {
+            claude_run::launch_session(claude_command, claude_config_dir, initial_prompt)
+        }
         AgentType::Codex => codex_run::launch_session(codex_command, initial_prompt),
     }
 }
 
-fn dispatch_respawn(agent_type: &AgentType, session_id: &str, claude_command: &str, claude_config_dir: Option<&str>, codex_command: &str, initial_prompt: Option<&str>) -> anyhow::Result<String> {
+fn dispatch_respawn(
+    agent_type: &AgentType,
+    session_id: &str,
+    claude_command: &str,
+    claude_config_dir: Option<&str>,
+    codex_command: &str,
+    initial_prompt: Option<&str>,
+) -> anyhow::Result<String> {
     match agent_type {
-        AgentType::Claude => claude_run::respawn_session(session_id, claude_command, claude_config_dir, initial_prompt),
+        AgentType::Claude => claude_run::respawn_session(
+            session_id,
+            claude_command,
+            claude_config_dir,
+            initial_prompt,
+        ),
         AgentType::Codex => codex_run::respawn_session(session_id, codex_command, initial_prompt),
     }
 }
@@ -96,10 +116,18 @@ async fn handle_message(
             if let Some(handle) = active_subscribers.write().await.remove(&id) {
                 handle.abort();
             }
-            dispatch_respawn(&agent_type, &id, &claude_command, (*claude_config_dir).as_deref(), &codex_command, Some("session renewed"))?;
+            dispatch_respawn(
+                &agent_type,
+                &id,
+                &claude_command,
+                (*claude_config_dir).as_deref(),
+                &codex_command,
+                Some("session renewed"),
+            )?;
 
             let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
-            let abort_handle = spawn_output_subscriber(bot.clone(), id.clone(), key.clone(), ready_tx);
+            let abort_handle =
+                spawn_output_subscriber(bot.clone(), id.clone(), key.clone(), ready_tx);
             active_subscribers.write().await.insert(id, abort_handle);
             let _ = ready_rx.await;
         }
@@ -127,7 +155,13 @@ async fn handle_message(
             if existing.is_some() {
                 session_map.remove(&key).await;
             }
-            let id = dispatch_launch(&agent_type, &claude_command, (*claude_config_dir).as_deref(), &codex_command, Some(&text))?;
+            let id = dispatch_launch(
+                &agent_type,
+                &claude_command,
+                (*claude_config_dir).as_deref(),
+                &codex_command,
+                Some(&text),
+            )?;
             session_map.insert(key.clone(), id.clone()).await;
             is_new_session = true;
             id
@@ -137,13 +171,11 @@ async fn handle_message(
     let already_subscribed = active_subscribers.read().await.contains_key(&session_id);
     if !already_subscribed {
         let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
-        let abort_handle = spawn_output_subscriber(
-            bot,
-            session_id.clone(),
-            key,
-            ready_tx,
-        );
-        active_subscribers.write().await.insert(session_id.clone(), abort_handle);
+        let abort_handle = spawn_output_subscriber(bot, session_id.clone(), key, ready_tx);
+        active_subscribers
+            .write()
+            .await
+            .insert(session_id.clone(), abort_handle);
 
         if is_new_session {
             let _ = ready_rx.await;
@@ -155,9 +187,7 @@ async fn handle_message(
         let fifo_path = dir.join("input");
 
         tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-            let mut fifo = std::fs::OpenOptions::new()
-                .write(true)
-                .open(&fifo_path)?;
+            let mut fifo = std::fs::OpenOptions::new().write(true).open(&fifo_path)?;
             fifo.write_all(text.as_bytes())?;
             fifo.write_all(b"\n")?;
             fifo.flush()?;

@@ -9,9 +9,7 @@ pub fn run(session_id: &str, prompt: &str) -> anyhow::Result<()> {
     }
 
     let fifo_path = dir.join("input");
-    let mut fifo = std::fs::OpenOptions::new()
-        .write(true)
-        .open(&fifo_path)?;
+    let mut fifo = std::fs::OpenOptions::new().write(true).open(&fifo_path)?;
     fifo.write_all(prompt.as_bytes())?;
     fifo.write_all(b"\n")?;
     fifo.flush()?;

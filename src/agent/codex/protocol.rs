@@ -155,14 +155,14 @@ impl Notification {
             "turn/started" => Some(Notification::TurnStarted),
             "turn/completed" => Some(Notification::TurnCompleted),
             "item/completed" => {
-                let params: ItemNotificationParams =
-                    serde_json::from_value(raw.params).ok()?;
+                let params: ItemNotificationParams = serde_json::from_value(raw.params).ok()?;
                 Some(Notification::ItemCompleted { item: params.item })
             }
             "item/agentMessage/delta" => {
-                let params: AgentMessageDeltaParams =
-                    serde_json::from_value(raw.params).ok()?;
-                Some(Notification::AgentMessageDelta { delta: params.delta })
+                let params: AgentMessageDeltaParams = serde_json::from_value(raw.params).ok()?;
+                Some(Notification::AgentMessageDelta {
+                    delta: params.delta,
+                })
             }
             _ => Some(Notification::Other(())),
         }

@@ -3,7 +3,7 @@ use std::mem::MaybeUninit;
 use std::path::Path;
 use std::sync::mpsc;
 
-use portable_pty::{native_pty_system, CommandBuilder, PtySize};
+use portable_pty::{CommandBuilder, PtySize, native_pty_system};
 use tokio::sync::oneshot;
 
 pub struct RawModeGuard {
@@ -57,7 +57,11 @@ pub struct PtyHandle {
     pub output_rx: tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
 }
 
-pub fn spawn_claude(cwd: &Path, command: &str, initial_prompt: Option<&str>) -> anyhow::Result<PtyHandle> {
+pub fn spawn_claude(
+    cwd: &Path,
+    command: &str,
+    initial_prompt: Option<&str>,
+) -> anyhow::Result<PtyHandle> {
     let size = terminal_size();
     let pty_system = native_pty_system();
     let pair = pty_system.openpty(size)?;

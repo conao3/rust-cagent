@@ -32,7 +32,10 @@ pub fn create_session_dir(session_id: &str) -> anyhow::Result<PathBuf> {
 }
 
 fn nix_mkfifo(path: &Path) -> anyhow::Result<()> {
-    let c_path = std::ffi::CString::new(path.to_str().ok_or_else(|| anyhow::anyhow!("invalid path"))?)?;
+    let c_path = std::ffi::CString::new(
+        path.to_str()
+            .ok_or_else(|| anyhow::anyhow!("invalid path"))?,
+    )?;
     let ret = unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) };
     if ret != 0 {
         anyhow::bail!("mkfifo failed: {}", std::io::Error::last_os_error());

@@ -60,7 +60,8 @@ mod tests {
 
     #[test]
     fn parses_agent_send_command() {
-        let cli = Cli::try_parse_from(["cagent", "agent", "send", "deadbeef", "hello"]).expect("parse agent send");
+        let cli = Cli::try_parse_from(["cagent", "agent", "send", "deadbeef", "hello"])
+            .expect("parse agent send");
         match cli.command {
             Commands::Agent { command } => match command {
                 agent::AgentCommand::Send { session_id, prompt } => {

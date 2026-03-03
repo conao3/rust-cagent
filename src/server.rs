@@ -64,11 +64,7 @@ fn is_pid_alive(pid: u32) -> bool {
 
 fn running_server_pid() -> Option<u32> {
     let pid = read_server_pid()?;
-    if is_pid_alive(pid) {
-        Some(pid)
-    } else {
-        None
-    }
+    if is_pid_alive(pid) { Some(pid) } else { None }
 }
 
 pub fn spawn_via_server(argv: Vec<String>) -> anyhow::Result<u32> {
@@ -83,9 +79,13 @@ pub fn spawn_via_server(argv: Vec<String>) -> anyhow::Result<u32> {
     let resp = client.post(url).json(&req).send()?;
     let resp: SpawnResponse = resp.json()?;
     if resp.ok {
-        resp.pid.ok_or_else(|| anyhow::anyhow!("server returned no pid"))
+        resp.pid
+            .ok_or_else(|| anyhow::anyhow!("server returned no pid"))
     } else {
-        anyhow::bail!(resp.error.unwrap_or_else(|| "server request failed".to_string()))
+        anyhow::bail!(
+            resp.error
+                .unwrap_or_else(|| "server request failed".to_string())
+        )
     }
 }
 
@@ -138,7 +138,9 @@ pub async fn run_server() -> anyhow::Result<()> {
     let state_dir = server_state_dir();
     fs::create_dir_all(&state_dir)?;
 
-    if let Some(pid) = running_server_pid() && pid != std::process::id() {
+    if let Some(pid) = running_server_pid()
+        && pid != std::process::id()
+    {
         anyhow::bail!("server already running: pid={pid}");
     }
 
@@ -177,11 +179,8 @@ mod tests {
         let state = AppState {
             exe_path: Arc::new(std::env::current_exe().expect("current exe")),
         };
-        let (status, Json(resp)) = spawn_handler(
-            State(state),
-            Json(SpawnRequest { argv: vec![] }),
-        )
-        .await;
+        let (status, Json(resp)) =
+            spawn_handler(State(state), Json(SpawnRequest { argv: vec![] })).await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert!(!resp.ok);
         assert!(resp.pid.is_none());

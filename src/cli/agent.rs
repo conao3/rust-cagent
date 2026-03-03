@@ -18,10 +18,18 @@ pub async fn run(command: AgentCommand) -> anyhow::Result<()> {
         AgentCommand::Codex => crate::agent::codex::run::launch().await?,
         AgentCommand::List => crate::agent::claude::server::list_sessions()?,
         AgentCommand::Prune => crate::agent::claude::server::prune_sessions()?,
-        AgentCommand::Kill { session_id } => crate::agent::claude::server::kill_session(&session_id)?,
-        AgentCommand::Subscribe { session_id } => crate::agent::claude::subscribe::run(&session_id).await?,
-        AgentCommand::Attach { session_id } => crate::agent::claude::attach::run(&session_id).await?,
-        AgentCommand::Send { session_id, prompt } => crate::agent::claude::send::run(&session_id, &prompt)?,
+        AgentCommand::Kill { session_id } => {
+            crate::agent::claude::server::kill_session(&session_id)?
+        }
+        AgentCommand::Subscribe { session_id } => {
+            crate::agent::claude::subscribe::run(&session_id).await?
+        }
+        AgentCommand::Attach { session_id } => {
+            crate::agent::claude::attach::run(&session_id).await?
+        }
+        AgentCommand::Send { session_id, prompt } => {
+            crate::agent::claude::send::run(&session_id, &prompt)?
+        }
     }
     Ok(())
 }

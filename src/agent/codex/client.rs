@@ -24,8 +24,14 @@ impl CodexClient {
             .kill_on_drop(true)
             .spawn()?;
 
-        let stdin = child.stdin.take().ok_or_else(|| anyhow::anyhow!("no stdin"))?;
-        let stdout = child.stdout.take().ok_or_else(|| anyhow::anyhow!("no stdout"))?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("no stdin"))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("no stdout"))?;
 
         Ok(Self {
             child,
@@ -35,7 +41,11 @@ impl CodexClient {
         })
     }
 
-    async fn send_request(&mut self, method: &'static str, params: Option<serde_json::Value>) -> anyhow::Result<serde_json::Value> {
+    async fn send_request(
+        &mut self,
+        method: &'static str,
+        params: Option<serde_json::Value>,
+    ) -> anyhow::Result<serde_json::Value> {
         let id = self.next_id;
         self.next_id += 1;
 
@@ -47,25 +57,39 @@ impl CodexClient {
         self.writer.flush().await?;
 
         loop {
-            let raw = self.reader.next_line().await?
-                .ok_or_else(|| anyhow::anyhow!("codex stdout closed while waiting for response to {method}"))?;
+            let raw = self.reader.next_line().await?.ok_or_else(|| {
+                anyhow::anyhow!("codex stdout closed while waiting for response to {method}")
+            })?;
 
             tracing::debug!("codex recv (waiting for id={id}): {raw}");
 
             if let Ok(resp) = serde_json::from_str::<JsonRpcResponse>(&raw)
-                && resp.id == id {
-                    return Ok(resp.result);
+                && resp.id == id
+            {
+                return Ok(resp.result);
             }
             if let Ok(err) = serde_json::from_str::<JsonRpcError>(&raw)
-                && err.id == id {
-                    anyhow::bail!("codex error: {} (code={})", err.error.message, err.error.code);
+                && err.id == id
+            {
+                anyhow::bail!(
+                    "codex error: {} (code={})",
+                    err.error.message,
+                    err.error.code
+                );
             }
         }
     }
 
-    async fn send_notification(&mut self, method: &'static str, params: Option<serde_json::Value>) -> anyhow::Result<()> {
+    async fn send_notification(
+        &mut self,
+        method: &'static str,
+        params: Option<serde_json::Value>,
+    ) -> anyhow::Result<()> {
         let mut obj = serde_json::Map::new();
-        obj.insert("method".to_string(), serde_json::Value::String(method.to_string()));
+        obj.insert(
+            "method".to_string(),
+            serde_json::Value::String(method.to_string()),
+        );
         if let Some(p) = params {
             obj.insert("params".to_string(), p);
         }
@@ -84,7 +108,8 @@ impl CodexClient {
             },
         };
         let _resp: InitializeResponse = serde_json::from_value(
-            self.send_request("initialize", Some(serde_json::to_value(&params)?)).await?,
+            self.send_request("initialize", Some(serde_json::to_value(&params)?))
+                .await?,
         )?;
         self.send_notification("initialized", None).await?;
         Ok(())
@@ -95,7 +120,8 @@ impl CodexClient {
             approval_policy: Some("never".to_string()),
         };
         let resp: ThreadStartResponse = serde_json::from_value(
-            self.send_request("thread/start", Some(serde_json::to_value(&params)?)).await?,
+            self.send_request("thread/start", Some(serde_json::to_value(&params)?))
+                .await?,
         )?;
         Ok(resp.thread.id)
     }
@@ -103,10 +129,13 @@ impl CodexClient {
     pub async fn turn_start(&mut self, thread_id: &str, text: &str) -> anyhow::Result<()> {
         let params = TurnStartParams {
             thread_id: thread_id.to_string(),
-            input: vec![UserInput::Text { text: text.to_string() }],
+            input: vec![UserInput::Text {
+                text: text.to_string(),
+            }],
         };
         let _resp: TurnStartResponse = serde_json::from_value(
-            self.send_request("turn/start", Some(serde_json::to_value(&params)?)).await?,
+            self.send_request("turn/start", Some(serde_json::to_value(&params)?))
+                .await?,
         )?;
         Ok(())
     }

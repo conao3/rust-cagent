@@ -83,7 +83,10 @@ mod tests {
 
     #[test]
     fn add_list_remove_roundtrip() {
-        let _guard = ENV_LOCK.get_or_init(|| Mutex::new(())).lock().expect("env lock");
+        let _guard = ENV_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("env lock");
         let tmp = tempfile::tempdir().expect("tempdir");
         let old = std::env::var_os("XDG_CONFIG_HOME");
         // SAFETY: serialized by ENV_LOCK in this test module.
@@ -112,7 +115,10 @@ mod tests {
 
     #[test]
     fn remove_missing_job_returns_error() {
-        let _guard = ENV_LOCK.get_or_init(|| Mutex::new(())).lock().expect("env lock");
+        let _guard = ENV_LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("env lock");
         let tmp = tempfile::tempdir().expect("tempdir");
         let old = std::env::var_os("XDG_CONFIG_HOME");
         // SAFETY: serialized by ENV_LOCK in this test module.

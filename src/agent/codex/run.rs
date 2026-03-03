@@ -4,8 +4,8 @@ use std::os::unix::fs::OpenOptionsExt;
 
 use rand::Rng;
 
-use crate::server as launcher_server;
 use crate::agent::claude::{server, session};
+use crate::server as launcher_server;
 
 use super::client::CodexClient;
 use super::protocol::{Notification, ThreadItem};
@@ -19,17 +19,29 @@ pub fn launch_session(codex_command: &str, initial_prompt: Option<&str>) -> anyh
     spawn_session(&generate_session_id(), codex_command, initial_prompt)
 }
 
-pub fn respawn_session(session_id: &str, codex_command: &str, initial_prompt: Option<&str>) -> anyhow::Result<String> {
+pub fn respawn_session(
+    session_id: &str,
+    codex_command: &str,
+    initial_prompt: Option<&str>,
+) -> anyhow::Result<String> {
     server::force_kill_session(session_id);
     spawn_session(session_id, codex_command, initial_prompt)
 }
 
-fn spawn_session(session_id: &str, codex_command: &str, initial_prompt: Option<&str>) -> anyhow::Result<String> {
+fn spawn_session(
+    session_id: &str,
+    codex_command: &str,
+    initial_prompt: Option<&str>,
+) -> anyhow::Result<String> {
     let session_id = session_id.to_string();
 
     server::create_session_dir(&session_id)?;
 
-    let mut args = vec!["codex-server".to_string(), "--codex-command".to_string(), codex_command.to_string()];
+    let mut args = vec![
+        "codex-server".to_string(),
+        "--codex-command".to_string(),
+        codex_command.to_string(),
+    ];
     if let Some(prompt) = initial_prompt {
         args.extend(["--initial-prompt".to_string(), prompt.to_string()]);
     }
@@ -45,7 +57,10 @@ pub async fn launch() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn start_fifo_line_reader(fifo_path: &std::path::Path, tx: tokio::sync::mpsc::UnboundedSender<String>) {
+fn start_fifo_line_reader(
+    fifo_path: &std::path::Path,
+    tx: tokio::sync::mpsc::UnboundedSender<String>,
+) {
     let fifo_path = fifo_path.to_path_buf();
     std::thread::spawn(move || {
         let file = match std::fs::OpenOptions::new()
@@ -92,7 +107,11 @@ fn emit_session_message(
     }
 }
 
-pub async fn run_server(session_id: &str, codex_command: &str, initial_prompt: Option<&str>) -> anyhow::Result<()> {
+pub async fn run_server(
+    session_id: &str,
+    codex_command: &str,
+    initial_prompt: Option<&str>,
+) -> anyhow::Result<()> {
     let cwd = env::current_dir()?;
 
     let session_dir = server::session_dir(session_id);
@@ -123,11 +142,16 @@ pub async fn run_server(session_id: &str, codex_command: &str, initial_prompt: O
             None => break,
         };
 
-        emit_session_message(&session_tx, &session::SessionMessage::User {
-            message: session::MessageBody {
-                content: vec![session::ContentBlock::Text { text: prompt.clone() }],
+        emit_session_message(
+            &session_tx,
+            &session::SessionMessage::User {
+                message: session::MessageBody {
+                    content: vec![session::ContentBlock::Text {
+                        text: prompt.clone(),
+                    }],
+                },
             },
-        });
+        );
 
         if let Err(e) = client.turn_start(&thread_id, &prompt).await {
             tracing::error!("turn_start failed: {e}");
@@ -147,7 +171,9 @@ pub async fn run_server(session_id: &str, codex_command: &str, initial_prompt: O
                             vec![session::ContentBlock::Text { text: text.clone() }]
                         }
                         ThreadItem::Reasoning { summary } if !summary.is_empty() => {
-                            vec![session::ContentBlock::Thinking { thinking: summary.join("\n") }]
+                            vec![session::ContentBlock::Thinking {
+                                thinking: summary.join("\n"),
+                            }]
                         }
                         ThreadItem::CommandExecution { command, .. } if !command.is_empty() => {
                             vec![session::ContentBlock::ToolUse {
@@ -158,18 +184,26 @@ pub async fn run_server(session_id: &str, codex_command: &str, initial_prompt: O
                         _ => vec![],
                     };
                     if !blocks.is_empty() {
-                        emit_session_message(&session_tx, &session::SessionMessage::Assistant {
-                            message: session::MessageBody { content: blocks },
-                        });
+                        emit_session_message(
+                            &session_tx,
+                            &session::SessionMessage::Assistant {
+                                message: session::MessageBody { content: blocks },
+                            },
+                        );
                     }
                 }
                 Ok(Some(Notification::TurnCompleted)) => {
                     if !agent_text.is_empty() {
-                        emit_session_message(&session_tx, &session::SessionMessage::Assistant {
-                            message: session::MessageBody {
-                                content: vec![session::ContentBlock::Text { text: std::mem::take(&mut agent_text) }],
+                        emit_session_message(
+                            &session_tx,
+                            &session::SessionMessage::Assistant {
+                                message: session::MessageBody {
+                                    content: vec![session::ContentBlock::Text {
+                                        text: std::mem::take(&mut agent_text),
+                                    }],
+                                },
                             },
-                        });
+                        );
                     }
                     break;
                 }

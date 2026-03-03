@@ -38,8 +38,12 @@ pub struct MessageBody {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlock {
-    Text { text: String },
-    Thinking { thinking: String },
+    Text {
+        text: String,
+    },
+    Thinking {
+        thinking: String,
+    },
     #[serde(rename = "tool_use")]
     ToolUse {
         name: String,
@@ -75,14 +79,21 @@ fn extract_config_dir_from_wrapper() -> Option<PathBuf> {
         for line in content.lines() {
             let line = line.trim();
             if let Some(rest) = line.strip_prefix("export CLAUDE_CONFIG_DIR=") {
-                let val = rest.trim_matches('"').replace("$HOME", &dirs::home_dir()?.to_string_lossy());
+                let val = rest
+                    .trim_matches('"')
+                    .replace("$HOME", &dirs::home_dir()?.to_string_lossy());
                 return Some(PathBuf::from(val));
             }
         }
         let next_cmd = content.lines().find_map(|l| {
             let l = l.trim();
-            l.strip_prefix("exec ")
-                .map(|rest| rest.split_whitespace().next().unwrap_or("").trim_matches('"').to_string())
+            l.strip_prefix("exec ").map(|rest| {
+                rest.split_whitespace()
+                    .next()
+                    .unwrap_or("")
+                    .trim_matches('"')
+                    .to_string()
+            })
         })?;
         if next_cmd.is_empty() {
             return None;
