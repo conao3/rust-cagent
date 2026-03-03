@@ -82,14 +82,14 @@ pub async fn run_server(
     let cwd = env::current_dir()?;
 
     let session_dir = server::session_dir(session_id);
-    let fifo_path = session_dir.join("input");
-    let sock_path = session_dir.join("output.sock");
+    let send_fifo_path = server::message_send_fifo_path(session_id);
+    let receive_fifo_path = server::message_receive_fifo_path(session_id);
 
     server::write_meta(session_id, &cwd)?;
 
     let handle = pty::spawn_claude(&cwd, claude_command, initial_prompt)?;
 
-    server::start_fifo_reader(&fifo_path, handle.input_tx.clone());
+    server::start_fifo_reader(&send_fifo_path, handle.input_tx.clone());
 
     let pty_sock_path = session_dir.join("pty.sock");
     server::start_pty_server(pty_sock_path, handle.output_rx);
@@ -103,7 +103,7 @@ pub async fn run_server(
         }
     });
 
-    let _broadcast_tx = server::start_broadcast_server(sock_path, session_rx);
+    let _broadcast_tx = server::start_fifo_broadcast(receive_fifo_path, session_rx);
 
     let mut child_exited = handle.child_exited;
     match (&mut child_exited).await {

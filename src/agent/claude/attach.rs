@@ -12,7 +12,7 @@ pub async fn run(session_id: &str) -> anyhow::Result<()> {
         anyhow::bail!("session directory not found: {}", dir.display());
     }
 
-    let fifo_path = dir.join("input");
+    let fifo_path = server::message_send_fifo_path(session_id);
     let pty_sock_path = dir.join("pty.sock");
 
     let _raw = RawModeGuard::enter()?;

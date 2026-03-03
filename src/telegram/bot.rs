@@ -5,7 +5,6 @@ use std::sync::Arc;
 use teloxide::prelude::*;
 use teloxide::types::ChatAction;
 use tokio::io::AsyncBufReadExt;
-use tokio::net::UnixStream;
 use tokio::sync::RwLock;
 use tokio::task::AbortHandle;
 
@@ -182,8 +181,7 @@ async fn handle_message(
     }
 
     if !is_new_session {
-        let dir = server::session_dir(&session_id);
-        let fifo_path = dir.join("input");
+        let fifo_path = server::message_send_fifo_path(&session_id);
 
         tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
             let mut fifo = std::fs::OpenOptions::new().write(true).open(&fifo_path)?;
@@ -205,20 +203,24 @@ fn spawn_output_subscriber(
     ready_tx: tokio::sync::oneshot::Sender<()>,
 ) -> AbortHandle {
     let handle = tokio::spawn(async move {
-        let dir = server::session_dir(&session_id);
-        let sock_path = dir.join("output.sock");
+        let recv_fifo_path = server::message_receive_fifo_path(&session_id);
 
         for _ in 0..60 {
-            if sock_path.exists() {
+            if recv_fifo_path.exists() {
                 break;
             }
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
 
-        let stream = match UnixStream::connect(&sock_path).await {
+        let stream = match tokio::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&recv_fifo_path)
+            .await
+        {
             Ok(s) => s,
             Err(e) => {
-                tracing::error!("failed to connect output.sock for {session_id}: {e}");
+                tracing::error!("failed to open message_receive.fifo for {session_id}: {e}");
                 let _ = ready_tx.send(());
                 return;
             }
@@ -245,8 +247,7 @@ fn spawn_output_subscriber(
             }
         });
 
-        let (reader, _) = stream.into_split();
-        let mut lines = tokio::io::BufReader::new(reader).lines();
+        let mut lines = tokio::io::BufReader::new(stream).lines();
 
         while let Ok(Some(line)) = lines.next_line().await {
             if line.trim().is_empty() {

@@ -8,7 +8,7 @@ pub fn run(session_id: &str, prompt: &str) -> anyhow::Result<()> {
         anyhow::bail!("session directory not found: {}", dir.display());
     }
 
-    let fifo_path = dir.join("input");
+    let fifo_path = server::message_send_fifo_path(session_id);
     let mut fifo = std::fs::OpenOptions::new().write(true).open(&fifo_path)?;
     fifo.write_all(prompt.as_bytes())?;
     fifo.write_all(b"\n")?;

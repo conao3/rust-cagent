@@ -16,16 +16,29 @@ struct SessionMeta {
 }
 
 pub fn session_dir(session_id: &str) -> PathBuf {
-    PathBuf::from(format!("/tmp/cagent/{session_id}"))
+    PathBuf::from(format!("/tmp/cagent/session/{session_id}"))
+}
+
+pub fn message_send_fifo_path(session_id: &str) -> PathBuf {
+    session_dir(session_id).join("message_send.fifo")
+}
+
+pub fn message_receive_fifo_path(session_id: &str) -> PathBuf {
+    session_dir(session_id).join("message_receive.fifo")
 }
 
 pub fn create_session_dir(session_id: &str) -> anyhow::Result<PathBuf> {
     let dir = session_dir(session_id);
     fs::create_dir_all(&dir)?;
 
-    let fifo_path = dir.join("input");
-    if !fifo_path.exists() {
-        nix_mkfifo(&fifo_path)?;
+    let send_fifo_path = message_send_fifo_path(session_id);
+    if !send_fifo_path.exists() {
+        nix_mkfifo(&send_fifo_path)?;
+    }
+
+    let receive_fifo_path = message_receive_fifo_path(session_id);
+    if !receive_fifo_path.exists() {
+        nix_mkfifo(&receive_fifo_path)?;
     }
 
     Ok(dir)
@@ -94,52 +107,39 @@ pub fn start_fifo_reader(fifo_path: &Path, input_tx: std_mpsc::Sender<Vec<u8>>) 
     });
 }
 
-pub fn start_broadcast_server(
-    sock_path: PathBuf,
+pub fn start_fifo_broadcast(
+    fifo_path: PathBuf,
     mut session_rx: tokio::sync::mpsc::UnboundedReceiver<String>,
 ) -> broadcast::Sender<String> {
     let (broadcast_tx, _) = broadcast::channel::<String>(256);
     let tx = broadcast_tx.clone();
 
     tokio::spawn(async move {
-        if sock_path.exists() {
-            let _ = fs::remove_file(&sock_path);
+        if !fifo_path.exists() && let Err(e) = nix_mkfifo(&fifo_path) {
+            tracing::error!("failed to create message receive fifo: {e}");
+            return;
         }
 
-        let listener = match UnixListener::bind(&sock_path) {
-            Ok(l) => l,
+        let mut fifo = match tokio::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&fifo_path)
+            .await
+        {
+            Ok(f) => f,
             Err(e) => {
-                tracing::error!("failed to bind unix socket: {e}");
+                tracing::error!("failed to open message receive fifo: {e}");
                 return;
             }
         };
 
-        let accept_tx = tx.clone();
-        tokio::spawn(async move {
-            loop {
-                match listener.accept().await {
-                    Ok((stream, _)) => {
-                        let mut rx = accept_tx.subscribe();
-                        tokio::spawn(async move {
-                            let (_, mut writer) = stream.into_split();
-                            while let Ok(msg) = rx.recv().await {
-                                let mut line = msg;
-                                line.push('\n');
-                                if writer.write_all(line.as_bytes()).await.is_err() {
-                                    break;
-                                }
-                            }
-                        });
-                    }
-                    Err(e) => {
-                        tracing::warn!("unix socket accept error: {e}");
-                    }
-                }
-            }
-        });
-
         while let Some(msg) = session_rx.recv().await {
-            let _ = tx.send(msg);
+            let _ = tx.send(msg.clone());
+            let mut line = msg;
+            line.push('\n');
+            if let Err(e) = fifo.write_all(line.as_bytes()).await {
+                tracing::warn!("failed to write message receive fifo: {e}");
+            }
         }
     });
 
@@ -214,7 +214,7 @@ pub fn write_meta(session_id: &str, cwd: &Path) -> anyhow::Result<()> {
 }
 
 pub fn list_sessions() -> anyhow::Result<()> {
-    let base = PathBuf::from("/tmp/cagent");
+    let base = PathBuf::from("/tmp/cagent/session");
     if !base.exists() {
         return Ok(());
     }
@@ -249,7 +249,7 @@ pub fn list_sessions() -> anyhow::Result<()> {
 }
 
 pub fn prune_sessions() -> anyhow::Result<()> {
-    let base = PathBuf::from("/tmp/cagent");
+    let base = PathBuf::from("/tmp/cagent/session");
     if !base.exists() {
         return Ok(());
     }
@@ -327,12 +327,16 @@ mod tests {
     fn create_and_cleanup_session_dir_with_fifo() {
         let sid = unique_session_id("test-session");
         let dir = create_session_dir(&sid).expect("create session dir");
-        let fifo = dir.join("input");
+        let send_fifo = dir.join("message_send.fifo");
+        let receive_fifo = dir.join("message_receive.fifo");
 
         assert!(dir.exists());
-        assert!(fifo.exists());
-        let meta = std::fs::metadata(&fifo).expect("fifo metadata");
+        assert!(send_fifo.exists());
+        assert!(receive_fifo.exists());
+        let meta = std::fs::metadata(&send_fifo).expect("fifo metadata");
+        let receive_meta = std::fs::metadata(&receive_fifo).expect("fifo metadata");
         assert!(meta.file_type().is_fifo());
+        assert!(receive_meta.file_type().is_fifo());
 
         cleanup_session_dir(&sid);
         assert!(!dir.exists());

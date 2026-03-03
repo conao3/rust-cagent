@@ -1,7 +1,6 @@
 use std::io::{Read, Write};
 
 use tokio::io::AsyncBufReadExt;
-use tokio::net::UnixStream;
 
 use super::server;
 
@@ -11,8 +10,8 @@ pub async fn run(session_id: &str) -> anyhow::Result<()> {
         anyhow::bail!("session directory not found: {}", dir.display());
     }
 
-    let fifo_path = dir.join("input");
-    let sock_path = dir.join("output.sock");
+    let fifo_path = server::message_send_fifo_path(session_id);
+    let recv_fifo_path = server::message_receive_fifo_path(session_id);
 
     std::thread::spawn(move || {
         let mut stdin = std::io::stdin();
@@ -37,9 +36,13 @@ pub async fn run(session_id: &str) -> anyhow::Result<()> {
         }
     });
 
-    let stream = UnixStream::connect(&sock_path).await?;
-    let (reader, _) = stream.into_split();
-    let mut lines = tokio::io::BufReader::new(reader).lines();
+    let stream = tokio::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&recv_fifo_path)
+        .await?;
+    let reader = tokio::io::BufReader::new(stream);
+    let mut lines = reader.lines();
 
     while let Some(line) = lines.next_line().await? {
         println!("{line}");

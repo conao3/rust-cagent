@@ -115,9 +115,8 @@ pub async fn run_server(
 ) -> anyhow::Result<()> {
     let cwd = env::current_dir()?;
 
-    let session_dir = server::session_dir(session_id);
-    let fifo_path = session_dir.join("input");
-    let sock_path = session_dir.join("output.sock");
+    let send_fifo_path = server::message_send_fifo_path(session_id);
+    let receive_fifo_path = server::message_receive_fifo_path(session_id);
 
     server::write_meta(session_id, &cwd)?;
 
@@ -128,14 +127,14 @@ pub async fn run_server(
     tracing::info!("codex thread started: {thread_id}");
 
     let (prompt_tx, mut prompt_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
-    start_fifo_line_reader(&fifo_path, prompt_tx.clone());
+    start_fifo_line_reader(&send_fifo_path, prompt_tx.clone());
 
     if let Some(prompt) = initial_prompt {
         let _ = prompt_tx.send(prompt.to_string());
     }
 
     let (session_tx, session_rx) = tokio::sync::mpsc::unbounded_channel();
-    let _broadcast_tx = server::start_broadcast_server(sock_path, session_rx);
+    let _broadcast_tx = server::start_fifo_broadcast(receive_fifo_path, session_rx);
 
     loop {
         let prompt = match prompt_rx.recv().await {
