@@ -307,3 +307,49 @@ pub fn force_kill_session(session_id: &str) {
     }
     cleanup_session_dir(session_id);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::FileTypeExt;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_session_id(prefix: &str) -> String {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        format!("{prefix}-{now}-{}", std::process::id())
+    }
+
+    #[test]
+    fn create_and_cleanup_session_dir_with_fifo() {
+        let sid = unique_session_id("test-session");
+        let dir = create_session_dir(&sid).expect("create session dir");
+        let fifo = dir.join("input");
+
+        assert!(dir.exists());
+        assert!(fifo.exists());
+        let meta = std::fs::metadata(&fifo).expect("fifo metadata");
+        assert!(meta.file_type().is_fifo());
+
+        cleanup_session_dir(&sid);
+        assert!(!dir.exists());
+    }
+
+    #[test]
+    fn write_meta_creates_meta_json() {
+        let sid = unique_session_id("test-meta");
+        let dir = create_session_dir(&sid).expect("create session dir");
+        let cwd = std::env::current_dir().expect("cwd");
+
+        write_meta(&sid, &cwd).expect("write meta");
+        let meta_path = dir.join("meta.json");
+        let content = std::fs::read_to_string(meta_path).expect("read meta");
+        let parsed: SessionMeta = serde_json::from_str(&content).expect("parse meta");
+        assert_eq!(parsed.pid, std::process::id());
+        assert_eq!(parsed.cwd, cwd.to_string_lossy());
+
+        cleanup_session_dir(&sid);
+    }
+}

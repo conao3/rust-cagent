@@ -162,3 +162,45 @@ pub async fn run_server() -> anyhow::Result<()> {
     axum::serve(listener, app).await?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn health_returns_ok() {
+        assert_eq!(health().await, "ok");
+    }
+
+    #[tokio::test]
+    async fn spawn_handler_rejects_empty_argv() {
+        let state = AppState {
+            exe_path: Arc::new(std::env::current_exe().expect("current exe")),
+        };
+        let (status, Json(resp)) = spawn_handler(
+            State(state),
+            Json(SpawnRequest { argv: vec![] }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(!resp.ok);
+        assert!(resp.pid.is_none());
+    }
+
+    #[tokio::test]
+    async fn spawn_handler_spawns_process() {
+        let state = AppState {
+            exe_path: Arc::new(std::path::PathBuf::from("/bin/sh")),
+        };
+        let (status, Json(resp)) = spawn_handler(
+            State(state),
+            Json(SpawnRequest {
+                argv: vec!["-c".to_string(), "true".to_string()],
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(resp.ok);
+        assert!(resp.pid.is_some());
+    }
+}

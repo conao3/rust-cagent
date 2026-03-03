@@ -73,3 +73,61 @@ pub fn remove(job_id: &str) -> anyhow::Result<()> {
     save(&store)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    #[test]
+    fn add_list_remove_roundtrip() {
+        let _guard = ENV_LOCK.get_or_init(|| Mutex::new(())).lock().expect("env lock");
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let old = std::env::var_os("XDG_CONFIG_HOME");
+        // SAFETY: serialized by ENV_LOCK in this test module.
+        unsafe { std::env::set_var("XDG_CONFIG_HOME", tmp.path()) };
+
+        let id = add("*/5 * * * *", "hello").expect("add");
+        let jobs = list().expect("list");
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(jobs[0].id, id);
+        assert_eq!(jobs[0].cron, "*/5 * * * *");
+        assert_eq!(jobs[0].prompt, "hello");
+
+        remove(&id).expect("remove");
+        let jobs = list().expect("list after remove");
+        assert!(jobs.is_empty());
+
+        // SAFETY: serialized by ENV_LOCK in this test module.
+        unsafe {
+            if let Some(v) = old {
+                std::env::set_var("XDG_CONFIG_HOME", v);
+            } else {
+                std::env::remove_var("XDG_CONFIG_HOME");
+            }
+        }
+    }
+
+    #[test]
+    fn remove_missing_job_returns_error() {
+        let _guard = ENV_LOCK.get_or_init(|| Mutex::new(())).lock().expect("env lock");
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let old = std::env::var_os("XDG_CONFIG_HOME");
+        // SAFETY: serialized by ENV_LOCK in this test module.
+        unsafe { std::env::set_var("XDG_CONFIG_HOME", tmp.path()) };
+
+        let err = remove("no-such-job").expect_err("must fail");
+        assert!(err.to_string().contains("job not found"));
+
+        // SAFETY: serialized by ENV_LOCK in this test module.
+        unsafe {
+            if let Some(v) = old {
+                std::env::set_var("XDG_CONFIG_HOME", v);
+            } else {
+                std::env::remove_var("XDG_CONFIG_HOME");
+            }
+        }
+    }
+}

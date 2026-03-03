@@ -47,3 +47,51 @@ pub async fn run() -> anyhow::Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_server_command() {
+        let cli = Cli::try_parse_from(["cagent", "server"]).expect("parse server");
+        assert!(matches!(cli.command, Commands::Server));
+    }
+
+    #[test]
+    fn parses_agent_send_command() {
+        let cli = Cli::try_parse_from(["cagent", "agent", "send", "deadbeef", "hello"]).expect("parse agent send");
+        match cli.command {
+            Commands::Agent { command } => match command {
+                agent::AgentCommand::Send { session_id, prompt } => {
+                    assert_eq!(session_id, "deadbeef");
+                    assert_eq!(prompt, "hello");
+                }
+                _ => panic!("unexpected agent command"),
+            },
+            _ => panic!("unexpected root command"),
+        }
+    }
+
+    #[test]
+    fn parses_hidden_claude_server_command() {
+        let cli = Cli::try_parse_from([
+            "cagent",
+            "claude-server",
+            "--claude-command",
+            "claude",
+            "--initial-prompt",
+            "hi",
+            "1234abcd",
+        ])
+        .expect("parse hidden claude-server");
+        match cli.command {
+            Commands::ClaudeServer(args) => {
+                assert_eq!(args.session_id, "1234abcd");
+                assert_eq!(args.claude_command, "claude");
+                assert_eq!(args.initial_prompt.as_deref(), Some("hi"));
+            }
+            _ => panic!("unexpected command"),
+        }
+    }
+}
