@@ -58,16 +58,20 @@ pub async fn start() -> anyhow::Result<()> {
 
 fn dispatch_launch(
     agent_type: &AgentType,
+    session_id: &str,
     claude_command: &str,
     claude_config_dir: Option<&str>,
     codex_command: &str,
     initial_prompt: Option<&str>,
 ) -> anyhow::Result<String> {
     match agent_type {
-        AgentType::Claude => {
-            claude_run::launch_session(claude_command, claude_config_dir, initial_prompt)
-        }
-        AgentType::Codex => codex_run::launch_session(codex_command, initial_prompt),
+        AgentType::Claude => claude_run::launch_session_with_id(
+            session_id,
+            claude_command,
+            claude_config_dir,
+            initial_prompt,
+        ),
+        AgentType::Codex => codex_run::launch_session_with_id(session_id, codex_command, initial_prompt),
     }
 }
 
@@ -90,6 +94,11 @@ fn dispatch_respawn(
     }
 }
 
+fn session_id_from_key(key: &ConversationKey) -> String {
+    let thread_id = key.thread_id.map(|id| id.0.0).unwrap_or(0);
+    format!("{}:{thread_id}", key.chat_id)
+}
+
 #[allow(clippy::too_many_arguments)]
 async fn handle_message(
     bot: Bot,
@@ -107,28 +116,42 @@ async fn handle_message(
     };
 
     let key = ConversationKey::from_message(&msg);
+    let derived_session_id = session_id_from_key(&key);
     let chat_id = ChatId(key.chat_id);
 
     if text == "/new" {
-        if let Some(id) = session_map.get(&key).await {
-            if let Some(handle) = active_subscribers.write().await.remove(&id) {
-                handle.abort();
-            }
-            dispatch_respawn(
-                &agent_type,
-                &id,
-                &claude_command,
-                (*claude_config_dir).as_deref(),
-                &codex_command,
-                Some("session renewed"),
-            )?;
-
-            let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
-            let abort_handle =
-                spawn_output_subscriber(bot.clone(), id.clone(), key.clone(), ready_tx);
-            active_subscribers.write().await.insert(id, abort_handle);
-            let _ = ready_rx.await;
+        if let Some(handle) = active_subscribers
+            .write()
+            .await
+            .remove(&derived_session_id)
+        {
+            handle.abort();
         }
+        dispatch_respawn(
+            &agent_type,
+            &derived_session_id,
+            &claude_command,
+            (*claude_config_dir).as_deref(),
+            &codex_command,
+            Some("session renewed"),
+        )?;
+        session_map
+            .insert(key.clone(), derived_session_id.clone())
+            .await;
+
+        let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+        let abort_handle = spawn_output_subscriber(
+            bot.clone(),
+            derived_session_id.clone(),
+            key.clone(),
+            ready_tx,
+        );
+        active_subscribers
+            .write()
+            .await
+            .insert(derived_session_id, abort_handle);
+        let _ = ready_rx.await;
+
         let mut req = bot.send_message(chat_id, "Session renewed.");
         if let Some(thread_id) = key.thread_id {
             req = req.message_thread_id(thread_id);
@@ -143,28 +166,19 @@ async fn handle_message(
     }
     let _ = typing_req.await;
 
-    let is_new_session;
-    let session_id = match session_map.get(&key).await {
-        Some(id) if server::session_dir(&id).exists() => {
-            is_new_session = false;
-            id
-        }
-        existing => {
-            if existing.is_some() {
-                session_map.remove(&key).await;
-            }
-            let id = dispatch_launch(
-                &agent_type,
-                &claude_command,
-                (*claude_config_dir).as_deref(),
-                &codex_command,
-                Some(&text),
-            )?;
-            session_map.insert(key.clone(), id.clone()).await;
-            is_new_session = true;
-            id
-        }
-    };
+    let session_id = derived_session_id;
+    let is_new_session = !server::session_dir(&session_id).exists();
+    if is_new_session {
+        dispatch_launch(
+            &agent_type,
+            &session_id,
+            &claude_command,
+            (*claude_config_dir).as_deref(),
+            &codex_command,
+            Some(&text),
+        )?;
+    }
+    session_map.insert(key.clone(), session_id.clone()).await;
 
     let already_subscribed = active_subscribers.read().await.contains_key(&session_id);
     if !already_subscribed {

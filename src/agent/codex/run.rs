@@ -19,6 +19,14 @@ pub fn launch_session(codex_command: &str, initial_prompt: Option<&str>) -> anyh
     spawn_session(&generate_session_id(), codex_command, initial_prompt)
 }
 
+pub fn launch_session_with_id(
+    session_id: &str,
+    codex_command: &str,
+    initial_prompt: Option<&str>,
+) -> anyhow::Result<String> {
+    spawn_session(session_id, codex_command, initial_prompt)
+}
+
 pub fn respawn_session(
     session_id: &str,
     codex_command: &str,

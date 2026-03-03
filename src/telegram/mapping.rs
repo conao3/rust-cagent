@@ -46,17 +46,8 @@ impl SessionMap {
         }
     }
 
-    pub async fn get(&self, key: &ConversationKey) -> Option<String> {
-        self.inner.read().await.map.get(key).cloned()
-    }
-
     pub async fn insert(&self, key: ConversationKey, session_id: String) {
         self.inner.write().await.map.insert(key, session_id);
-        self.save().await;
-    }
-
-    pub async fn remove(&self, key: &ConversationKey) {
-        self.inner.write().await.map.remove(key);
         self.save().await;
     }
 
