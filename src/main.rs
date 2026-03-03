@@ -1,5 +1,4 @@
 mod agent;
-mod app;
 mod cli;
 mod cron;
 mod server;
@@ -13,5 +12,5 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    app::run(cli::parse_command()).await
+    cli::run().await
 }

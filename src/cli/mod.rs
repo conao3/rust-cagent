@@ -33,6 +33,16 @@ pub fn parse_command() -> Command {
     Cli::parse().command
 }
 
+pub async fn run() -> anyhow::Result<()> {
+    match parse_command() {
+        Command::Agent { command } => agent::run(command).await?,
+        Command::Server => crate::server::run_server().await?,
+        Command::Cron { command } => cron::run(command).await?,
+        Command::Internal { command } => internal::run(command).await?,
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
