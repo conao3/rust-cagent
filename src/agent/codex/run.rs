@@ -4,7 +4,7 @@ use std::os::unix::fs::OpenOptionsExt;
 
 use rand::Rng;
 
-use crate::agent::server as launcher_server;
+use crate::server as launcher_server;
 use crate::agent::claude::{server, session};
 
 use super::client::CodexClient;

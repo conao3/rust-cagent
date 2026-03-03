@@ -1,5 +1,6 @@
 mod agent;
 mod cron;
+mod server;
 mod telegram;
 
 use clap::{Parser, Subcommand};
@@ -101,7 +102,7 @@ async fn main() -> anyhow::Result<()> {
                 agent::claude::send::run(&session_id, &prompt)?
             }
         },
-        Commands::Server => agent::server::run_server().await?,
+        Commands::Server => server::run_server().await?,
         Commands::Telegram { command } => match command {
             TelegramCommands::Start => telegram::bot::start().await?,
         },

@@ -1,36 +1,36 @@
 # cagent
 
-`cagent` は Claude / Codex セッションをローカルで管理し、CLI・Telegram から操作するためのツールです。
+`cagent` is a local session manager for Claude/Codex with CLI and Telegram interfaces.
 
-## 必要環境
+## Requirements
 
 - Rust (Cargo)
-- `claude` または `codex` コマンド
-- (Telegram を使う場合) Bot Token
+- `claude` and/or `codex` command available in `PATH`
+- Telegram bot token (if you use Telegram integration)
 
-## ビルド
+## Build
 
 ```bash
 cargo build
 ```
 
-## 使い方
+## Usage
 
-### 1. サーバーを起動する
+### 1. Start the server
 
-まずフォアグラウンドでサーバーを起動します。
+Run the server in the foreground:
 
 ```bash
 cagent server
 ```
 
-- `Ctrl-C` で停止します（特別なシグナル処理なし）
-- PID ファイル: `${XDG_STATE_HOME:-~/.local/state}/cagent/server-pid`
-- ソケット: `${XDG_STATE_HOME:-~/.local/state}/cagent/server.sock`
+- Stop with `Ctrl-C` (default process behavior; no custom signal handling)
+- PID file: `${XDG_STATE_HOME:-~/.local/state}/cagent/server-pid`
+- Unix socket: `${XDG_STATE_HOME:-~/.local/state}/cagent/server.sock`
 
-### 2. セッションを作る
+### 2. Create a session
 
-別ターミナルから実行します。
+In another terminal:
 
 ```bash
 cagent agent claude
@@ -38,9 +38,9 @@ cagent agent claude
 cagent agent codex
 ```
 
-標準出力に `session_id` が出ます。
+The command prints a `session_id`.
 
-### 3. セッション操作
+### 3. Session operations
 
 ```bash
 cagent agent list
@@ -51,9 +51,9 @@ cagent agent kill <session_id>
 cagent agent prune
 ```
 
-## Telegram 連携
+## Telegram integration
 
-設定ファイル: `~/.config/cagent/config.toml`
+Configuration file: `~/.config/cagent/config.toml`
 
 ```toml
 agent = "claude" # or "codex"
@@ -66,15 +66,15 @@ token = "<BOT_TOKEN>"
 # working_dir = "/path/to/workdir"
 ```
 
-起動:
+Start:
 
 ```bash
 cagent telegram start
 ```
 
-## Cron サブコマンド
+## Cron subcommands
 
-ジョブ定義を保存・一覧・削除します。
+Store, list, and remove cron job definitions:
 
 ```bash
 cagent cron add --cron "*/5 * * * *" --prompt "status"
@@ -82,9 +82,9 @@ cagent cron list
 cagent cron rm <job_id>
 ```
 
-保存先: `~/.config/cagent/cron.json`
+Storage file: `~/.config/cagent/cron.json`
 
-## 開発用コマンド
+## Development commands
 
 ```bash
 make build

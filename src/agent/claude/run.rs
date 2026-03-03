@@ -2,7 +2,7 @@ use std::env;
 
 use rand::Rng;
 
-use crate::agent::server as launcher_server;
+use crate::server as launcher_server;
 
 use super::{pty, server, session};
 
