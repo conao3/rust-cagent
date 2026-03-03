@@ -1,6 +1,6 @@
 pub mod agent;
-pub mod claude_server;
-pub mod codex_server;
+pub mod internal_claude_wrapper;
+pub mod internal_codex_wrapper;
 pub mod cron;
 pub mod server;
 pub mod telegram;
@@ -30,9 +30,9 @@ enum Commands {
         command: cron::CronCommand,
     },
     #[command(hide = true)]
-    ClaudeServer(claude_server::ClaudeServerArgs),
+    InternalClaudeWrapper(internal_claude_wrapper::InternalClaudeWrapperArgs),
     #[command(hide = true)]
-    CodexServer(codex_server::CodexServerArgs),
+    InternalCodexWrapper(internal_codex_wrapper::InternalCodexWrapperArgs),
 }
 
 pub async fn run() -> anyhow::Result<()> {
@@ -42,8 +42,8 @@ pub async fn run() -> anyhow::Result<()> {
         Commands::Server => server::run().await?,
         Commands::Telegram { command } => telegram::run(command).await?,
         Commands::Cron { command } => cron::run(command).await?,
-        Commands::ClaudeServer(args) => claude_server::run(args).await?,
-        Commands::CodexServer(args) => codex_server::run(args).await?,
+        Commands::InternalClaudeWrapper(args) => internal_claude_wrapper::run(args).await?,
+        Commands::InternalCodexWrapper(args) => internal_codex_wrapper::run(args).await?,
     }
     Ok(())
 }
@@ -75,21 +75,43 @@ mod tests {
     }
 
     #[test]
-    fn parses_hidden_claude_server_command() {
+    fn parses_hidden_internal_claude_wrapper_command() {
         let cli = Cli::try_parse_from([
             "cagent",
-            "claude-server",
+            "internal-claude-wrapper",
             "--claude-command",
             "claude",
             "--initial-prompt",
             "hi",
             "1234abcd",
         ])
-        .expect("parse hidden claude-server");
+        .expect("parse hidden internal-claude-wrapper");
         match cli.command {
-            Commands::ClaudeServer(args) => {
+            Commands::InternalClaudeWrapper(args) => {
                 assert_eq!(args.session_id, "1234abcd");
                 assert_eq!(args.claude_command, "claude");
+                assert_eq!(args.initial_prompt.as_deref(), Some("hi"));
+            }
+            _ => panic!("unexpected command"),
+        }
+    }
+
+    #[test]
+    fn parses_hidden_internal_codex_wrapper_command() {
+        let cli = Cli::try_parse_from([
+            "cagent",
+            "internal-codex-wrapper",
+            "--codex-command",
+            "codex",
+            "--initial-prompt",
+            "hi",
+            "1234abcd",
+        ])
+        .expect("parse hidden internal-codex-wrapper");
+        match cli.command {
+            Commands::InternalCodexWrapper(args) => {
+                assert_eq!(args.session_id, "1234abcd");
+                assert_eq!(args.codex_command, "codex");
                 assert_eq!(args.initial_prompt.as_deref(), Some("hi"));
             }
             _ => panic!("unexpected command"),

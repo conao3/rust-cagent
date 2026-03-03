@@ -1,7 +1,7 @@
 use clap::Parser;
 
 #[derive(Parser)]
-pub struct ClaudeServerArgs {
+pub struct InternalClaudeWrapperArgs {
     #[arg(long, default_value = "claude")]
     pub claude_command: String,
     #[arg(long)]
@@ -11,7 +11,7 @@ pub struct ClaudeServerArgs {
     pub session_id: String,
 }
 
-pub async fn run(args: ClaudeServerArgs) -> anyhow::Result<()> {
+pub async fn run(args: InternalClaudeWrapperArgs) -> anyhow::Result<()> {
     crate::agent::claude::run::run_server(
         &args.session_id,
         &args.claude_command,

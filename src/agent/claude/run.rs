@@ -50,7 +50,7 @@ fn spawn_session(
     server::create_session_dir(&session_id)?;
 
     let mut args = vec![
-        "claude-server".to_string(),
+        "internal-claude-wrapper".to_string(),
         "--claude-command".to_string(),
         claude_command.to_string(),
     ];

@@ -1,7 +1,7 @@
 use clap::Parser;
 
 #[derive(Parser)]
-pub struct CodexServerArgs {
+pub struct InternalCodexWrapperArgs {
     #[arg(long, default_value = "codex")]
     pub codex_command: String,
     #[arg(long)]
@@ -9,7 +9,7 @@ pub struct CodexServerArgs {
     pub session_id: String,
 }
 
-pub async fn run(args: CodexServerArgs) -> anyhow::Result<()> {
+pub async fn run(args: InternalCodexWrapperArgs) -> anyhow::Result<()> {
     crate::agent::codex::run::run_server(
         &args.session_id,
         &args.codex_command,

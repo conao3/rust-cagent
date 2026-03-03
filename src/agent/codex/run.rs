@@ -38,7 +38,7 @@ fn spawn_session(
     server::create_session_dir(&session_id)?;
 
     let mut args = vec![
-        "codex-server".to_string(),
+        "internal-codex-wrapper".to_string(),
         "--codex-command".to_string(),
         codex_command.to_string(),
     ];
