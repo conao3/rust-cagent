@@ -68,25 +68,34 @@ fn running_server_pid() -> Option<u32> {
 }
 
 pub fn spawn_via_server(argv: Vec<String>) -> anyhow::Result<u32> {
-    let req = SpawnRequest { argv };
     if running_server_pid().is_none() {
         anyhow::bail!("server is not running. start it with `cagent server`");
     }
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(3))
-        .build()?;
-    let url = format!("http://{}/spawn", server_addr());
-    let resp = client.post(url).json(&req).send()?;
-    let resp: SpawnResponse = resp.json()?;
-    if resp.ok {
-        resp.pid
-            .ok_or_else(|| anyhow::anyhow!("server returned no pid"))
-    } else {
-        anyhow::bail!(
-            resp.error
-                .unwrap_or_else(|| "server request failed".to_string())
-        )
-    }
+    tracing::info!("spawning via server: {:?}", argv);
+    std::thread::spawn(move || {
+        let req = SpawnRequest { argv };
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(3))
+            .build()?;
+        let resp: SpawnResponse = client
+            .post(format!("http://{}/spawn", server_addr()))
+            .json(&req)
+            .send()?
+            .json()?;
+        if resp.ok {
+            tracing::info!("spawned pid={:?}", resp.pid);
+            resp.pid
+                .ok_or_else(|| anyhow::anyhow!("server returned no pid"))
+        } else {
+            tracing::error!("spawn failed: {:?}", resp.error);
+            anyhow::bail!(
+                resp.error
+                    .unwrap_or_else(|| "server request failed".to_string())
+            )
+        }
+    })
+    .join()
+    .map_err(|_| anyhow::anyhow!("spawn_via_server thread panicked"))?
 }
 
 async fn health() -> &'static str {
@@ -108,6 +117,7 @@ async fn spawn_handler(
         );
     }
 
+    tracing::info!("spawn_handler: argv={:?}", req.argv);
     let mut cmd = std::process::Command::new(&*state.exe_path);
     cmd.args(&req.argv)
         .stdin(Stdio::null())
@@ -115,22 +125,28 @@ async fn spawn_handler(
         .stderr(Stdio::null())
         .process_group(0);
     match cmd.spawn() {
-        Ok(child) => (
-            StatusCode::OK,
-            Json(SpawnResponse {
-                ok: true,
-                pid: Some(child.id()),
-                error: None,
-            }),
-        ),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(SpawnResponse {
-                ok: false,
-                pid: None,
-                error: Some(e.to_string()),
-            }),
-        ),
+        Ok(child) => {
+            tracing::info!("spawn_handler: spawned pid={}", child.id());
+            (
+                StatusCode::OK,
+                Json(SpawnResponse {
+                    ok: true,
+                    pid: Some(child.id()),
+                    error: None,
+                }),
+            )
+        }
+        Err(e) => {
+            tracing::error!("spawn_handler: failed: {e}");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(SpawnResponse {
+                    ok: false,
+                    pid: None,
+                    error: Some(e.to_string()),
+                }),
+            )
+        }
     }
 }
 
@@ -222,5 +238,21 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert!(resp.ok);
         assert!(resp.pid.is_some());
+    }
+
+    #[tokio::test]
+    async fn spawn_via_server_no_panic_in_async_context() {
+        fs::create_dir_all(server_state_dir()).unwrap();
+        let backup = fs::read_to_string(server_pid_path()).ok();
+        fs::write(server_pid_path(), format!("{}\n", std::process::id())).unwrap();
+
+        let _result = spawn_via_server(vec!["--help".to_string()]);
+
+        match backup {
+            Some(content) => fs::write(server_pid_path(), content).unwrap(),
+            None => {
+                let _ = fs::remove_file(server_pid_path());
+            }
+        }
     }
 }

@@ -16,7 +16,7 @@ pub enum AgentCommand {
 pub struct ClaudeArgs {
     #[arg(long)]
     pub run: bool,
-    #[arg(long)]
+    #[arg(long, allow_hyphen_values = true)]
     pub session_id: Option<String>,
     #[arg(long, default_value = "claude")]
     pub claude_command: String,
@@ -30,7 +30,7 @@ pub struct ClaudeArgs {
 pub struct CodexArgs {
     #[arg(long)]
     pub run: bool,
-    #[arg(long)]
+    #[arg(long, allow_hyphen_values = true)]
     pub session_id: Option<String>,
     #[arg(long, default_value = "codex")]
     pub codex_command: String,

@@ -31,7 +31,10 @@ pub fn load() -> anyhow::Result<Config> {
         .ok_or_else(|| anyhow::anyhow!("config dir not found"))?
         .join("cagent")
         .join("config.toml");
+    tracing::info!("loading config from {}", path.display());
     let content = std::fs::read_to_string(&path)
         .map_err(|e| anyhow::anyhow!("failed to read {}: {e}", path.display()))?;
-    Ok(toml::from_str(&content)?)
+    let cfg: Config = toml::from_str(&content)?;
+    tracing::info!("config loaded: agent={:?}", cfg.agent);
+    Ok(cfg)
 }

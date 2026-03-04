@@ -15,22 +15,32 @@ use super::config::{self, AgentType};
 use super::format;
 use super::mapping::{ConversationKey, SessionMap};
 
+#[derive(Clone)]
+struct ClaudeCommand(Arc<String>);
+
+#[derive(Clone)]
+struct CodexCommand(Arc<String>);
+
 pub async fn start() -> anyhow::Result<()> {
+    tracing::info!("telegram bot starting");
     let cfg = config::load()?;
 
     if let Some(ref wd) = cfg.telegram.working_dir {
+        tracing::info!("changing working directory to {}", wd.display());
         std::env::set_current_dir(wd)?;
     }
 
     let agent_type: Arc<AgentType> = Arc::new(cfg.agent);
-    let claude_command: Arc<String> =
-        Arc::new(cfg.claude_command.unwrap_or_else(|| "claude".to_string()));
+    let claude_command = ClaudeCommand(Arc::new(
+        cfg.claude_command.unwrap_or_else(|| "claude".to_string()),
+    ));
     let claude_config_dir: Arc<Option<String>> = Arc::new(
         cfg.claude_config_dir
             .map(|p| p.to_string_lossy().into_owned()),
     );
-    let codex_command: Arc<String> =
-        Arc::new(cfg.codex_command.unwrap_or_else(|| "codex".to_string()));
+    let codex_command = CodexCommand(Arc::new(
+        cfg.codex_command.unwrap_or_else(|| "codex".to_string()),
+    ));
 
     let bot = Bot::new(&cfg.telegram.token);
     let session_map = SessionMap::load();
@@ -39,6 +49,7 @@ pub async fn start() -> anyhow::Result<()> {
 
     let handler = Update::filter_message().endpoint(handle_message);
 
+    tracing::info!("telegram bot dispatcher starting");
     Dispatcher::builder(bot.clone(), handler)
         .dependencies(dptree::deps![
             agent_type,
@@ -53,6 +64,7 @@ pub async fn start() -> anyhow::Result<()> {
         .dispatch()
         .await;
 
+    tracing::info!("telegram bot dispatcher stopped");
     Ok(())
 }
 
@@ -104,9 +116,9 @@ async fn handle_message(
     bot: Bot,
     msg: Message,
     agent_type: Arc<AgentType>,
-    claude_command: Arc<String>,
+    claude_command: ClaudeCommand,
     claude_config_dir: Arc<Option<String>>,
-    codex_command: Arc<String>,
+    codex_command: CodexCommand,
     session_map: SessionMap,
     active_subscribers: Arc<RwLock<HashMap<String, AbortHandle>>>,
 ) -> anyhow::Result<()> {
@@ -118,6 +130,7 @@ async fn handle_message(
     let key = ConversationKey::from_message(&msg);
     let derived_session_id = session_id_from_key(&key);
     let chat_id = ChatId(key.chat_id);
+    tracing::info!(session_id = %derived_session_id, "received message: {}", &text[..text.len().min(100)]);
 
     if text == "/new" {
         if let Some(handle) = active_subscribers
@@ -127,14 +140,10 @@ async fn handle_message(
         {
             handle.abort();
         }
-        dispatch_respawn(
-            &agent_type,
-            &derived_session_id,
-            &claude_command,
-            (*claude_config_dir).as_deref(),
-            &codex_command,
-            Some("session renewed"),
-        )?;
+        {
+            let (at, sid, cc, ccd, coc) = (agent_type.clone(), derived_session_id.clone(), claude_command.0.clone(), claude_config_dir.clone(), codex_command.0.clone());
+            tokio::task::spawn_blocking(move || dispatch_respawn(&at, &sid, &cc, (*ccd).as_deref(), &coc, Some("session renewed"))).await??
+        };
         session_map
             .insert(key.clone(), derived_session_id.clone())
             .await;
@@ -160,6 +169,7 @@ async fn handle_message(
         return Ok(());
     }
 
+    tracing::info!(session_id = %derived_session_id, "sending typing action");
     let mut typing_req = bot.send_chat_action(chat_id, ChatAction::Typing);
     if let Some(thread_id) = key.thread_id {
         typing_req = typing_req.message_thread_id(thread_id);
@@ -168,15 +178,14 @@ async fn handle_message(
 
     let session_id = derived_session_id;
     let is_new_session = !server::session_dir(&session_id).exists();
+    tracing::info!(session_id = %session_id, is_new_session, "session check");
     if is_new_session {
-        dispatch_launch(
-            &agent_type,
-            &session_id,
-            &claude_command,
-            (*claude_config_dir).as_deref(),
-            &codex_command,
-            Some(&text),
-        )?;
+        tracing::info!(session_id = %session_id, "launching new session");
+        {
+            let (at, sid, cc, ccd, coc, txt) = (agent_type.clone(), session_id.clone(), claude_command.0.clone(), claude_config_dir.clone(), codex_command.0.clone(), text.clone());
+            tokio::task::spawn_blocking(move || dispatch_launch(&at, &sid, &cc, (*ccd).as_deref(), &coc, Some(&txt))).await??
+        };
+        tracing::info!(session_id = %session_id, "session launched");
     }
     session_map.insert(key.clone(), session_id.clone()).await;
 
