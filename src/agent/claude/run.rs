@@ -30,7 +30,12 @@ pub fn launch_session_with_id(
     claude_config_dir: Option<&str>,
     initial_prompt: Option<&str>,
 ) -> anyhow::Result<String> {
-    spawn_session(session_id, claude_command, claude_config_dir, initial_prompt)
+    spawn_session(
+        session_id,
+        claude_command,
+        claude_config_dir,
+        initial_prompt,
+    )
 }
 
 pub fn respawn_session(

@@ -114,7 +114,9 @@ pub fn start_fifo_broadcast(
     let tx = broadcast_tx.clone();
 
     tokio::spawn(async move {
-        if !fifo_path.exists() && let Err(e) = nix_mkfifo(&fifo_path) {
+        if !fifo_path.exists()
+            && let Err(e) = nix_mkfifo(&fifo_path)
+        {
             tracing::error!("failed to create message receive fifo: {e}");
             return;
         }

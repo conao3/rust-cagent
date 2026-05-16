@@ -83,7 +83,9 @@ fn dispatch_launch(
             claude_config_dir,
             initial_prompt,
         ),
-        AgentType::Codex => codex_run::launch_session_with_id(session_id, codex_command, initial_prompt),
+        AgentType::Codex => {
+            codex_run::launch_session_with_id(session_id, codex_command, initial_prompt)
+        }
     }
 }
 
@@ -133,16 +135,28 @@ async fn handle_message(
     tracing::info!(session_id = %derived_session_id, "received message: {}", &text[..text.len().min(100)]);
 
     if text == "/new" {
-        if let Some(handle) = active_subscribers
-            .write()
-            .await
-            .remove(&derived_session_id)
-        {
+        if let Some(handle) = active_subscribers.write().await.remove(&derived_session_id) {
             handle.abort();
         }
         {
-            let (at, sid, cc, ccd, coc) = (agent_type.clone(), derived_session_id.clone(), claude_command.0.clone(), claude_config_dir.clone(), codex_command.0.clone());
-            tokio::task::spawn_blocking(move || dispatch_respawn(&at, &sid, &cc, (*ccd).as_deref(), &coc, Some("session renewed"))).await??
+            let (at, sid, cc, ccd, coc) = (
+                agent_type.clone(),
+                derived_session_id.clone(),
+                claude_command.0.clone(),
+                claude_config_dir.clone(),
+                codex_command.0.clone(),
+            );
+            tokio::task::spawn_blocking(move || {
+                dispatch_respawn(
+                    &at,
+                    &sid,
+                    &cc,
+                    (*ccd).as_deref(),
+                    &coc,
+                    Some("session renewed"),
+                )
+            })
+            .await??
         };
         session_map
             .insert(key.clone(), derived_session_id.clone())
@@ -182,8 +196,18 @@ async fn handle_message(
     if is_new_session {
         tracing::info!(session_id = %session_id, "launching new session");
         {
-            let (at, sid, cc, ccd, coc, txt) = (agent_type.clone(), session_id.clone(), claude_command.0.clone(), claude_config_dir.clone(), codex_command.0.clone(), text.clone());
-            tokio::task::spawn_blocking(move || dispatch_launch(&at, &sid, &cc, (*ccd).as_deref(), &coc, Some(&txt))).await??
+            let (at, sid, cc, ccd, coc, txt) = (
+                agent_type.clone(),
+                session_id.clone(),
+                claude_command.0.clone(),
+                claude_config_dir.clone(),
+                codex_command.0.clone(),
+                text.clone(),
+            );
+            tokio::task::spawn_blocking(move || {
+                dispatch_launch(&at, &sid, &cc, (*ccd).as_deref(), &coc, Some(&txt))
+            })
+            .await??
         };
         tracing::info!(session_id = %session_id, "session launched");
     }
