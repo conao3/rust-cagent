@@ -1,6 +1,6 @@
 use std::env;
 
-use rand::Rng;
+use rand::RngExt;
 
 use crate::server as launcher_server;
 
