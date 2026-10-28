@@ -40,7 +40,10 @@ fn save(store: &CronStore) -> anyhow::Result<()> {
 fn generate_id(store: &CronStore) -> String {
     let mut rng = rand::rng();
     loop {
-        let id = format!("{:04x}", rand::Rng::random_range(&mut rng, 0..0x10000u32));
+        let id = format!(
+            "{:04x}",
+            rand::RngExt::random_range(&mut rng, 0..0x10000u32)
+        );
         if !store.jobs.iter().any(|j| j.id == id) {
             return id;
         }

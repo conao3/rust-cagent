@@ -2,7 +2,7 @@ use std::env;
 use std::io::{BufRead, BufReader};
 use std::os::unix::fs::OpenOptionsExt;
 
-use rand::Rng;
+use rand::RngExt;
 
 use crate::agent::claude::{server, session};
 use crate::server as launcher_server;
