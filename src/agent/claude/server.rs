@@ -166,10 +166,34 @@ pub fn write_meta(session_id: &str, cwd: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn list_sessions() -> anyhow::Result<()> {
+#[derive(Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct SessionInfo {
+    pub session_id: String,
+    pub pid: u32,
+    pub cwd: String,
+}
+
+#[derive(Serialize)]
+pub enum PruneAction {
+    Killed,
+    RemovedWithoutMeta,
+    RemovedWithInvalidMeta,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct PrunedSession {
+    pub session_id: String,
+    pub pid: Option<u32>,
+    pub action: PruneAction,
+}
+
+pub fn list_sessions() -> anyhow::Result<Vec<SessionInfo>> {
     let base = PathBuf::from("/tmp/cagent/session");
+    let mut sessions = Vec::new();
     if !base.exists() {
-        return Ok(());
+        return Ok(sessions);
     }
 
     for entry in fs::read_dir(&base)? {
@@ -190,21 +214,21 @@ pub fn list_sessions() -> anyhow::Result<()> {
             continue;
         }
 
-        println!(
-            "{}\tpid={}\t{}",
-            entry.file_name().to_string_lossy(),
-            meta.pid,
-            meta.cwd,
-        );
+        sessions.push(SessionInfo {
+            session_id: entry.file_name().to_string_lossy().into_owned(),
+            pid: meta.pid,
+            cwd: meta.cwd,
+        });
     }
 
-    Ok(())
+    Ok(sessions)
 }
 
-pub fn prune_sessions() -> anyhow::Result<()> {
+pub fn prune_sessions() -> anyhow::Result<Vec<PrunedSession>> {
     let base = PathBuf::from("/tmp/cagent/session");
+    let mut pruned = Vec::new();
     if !base.exists() {
-        return Ok(());
+        return Ok(pruned);
     }
 
     for entry in fs::read_dir(&base)? {
@@ -215,7 +239,11 @@ pub fn prune_sessions() -> anyhow::Result<()> {
             Ok(c) => c,
             Err(_) => {
                 cleanup_session_dir(&sid);
-                println!("removed {sid} (no meta)");
+                pruned.push(PrunedSession {
+                    session_id: sid,
+                    pid: None,
+                    action: PruneAction::RemovedWithoutMeta,
+                });
                 continue;
             }
         };
@@ -223,33 +251,40 @@ pub fn prune_sessions() -> anyhow::Result<()> {
             Ok(m) => m,
             Err(_) => {
                 cleanup_session_dir(&sid);
-                println!("removed {sid} (invalid meta)");
+                pruned.push(PrunedSession {
+                    session_id: sid,
+                    pid: None,
+                    action: PruneAction::RemovedWithInvalidMeta,
+                });
                 continue;
             }
         };
 
         unsafe { libc::kill(-(meta.pid as i32), libc::SIGKILL) };
         cleanup_session_dir(&sid);
-        println!("killed {sid} (pid={})", meta.pid);
+        pruned.push(PrunedSession {
+            session_id: sid,
+            pid: Some(meta.pid),
+            action: PruneAction::Killed,
+        });
     }
 
-    Ok(())
+    Ok(pruned)
 }
 
-pub fn kill_session(session_id: &str) -> anyhow::Result<()> {
-    let meta_path = session_dir(session_id).join("meta.json");
-    if !meta_path.exists() {
-        anyhow::bail!("session not found: {session_id}");
-    }
+pub fn session_exists(session_id: &str) -> bool {
+    session_dir(session_id).exists()
+}
 
+pub fn kill_session(session_id: &str) -> anyhow::Result<u32> {
+    let meta_path = session_dir(session_id).join("meta.json");
     let meta: SessionMeta = serde_json::from_str(&fs::read_to_string(&meta_path)?)?;
 
     unsafe {
         libc::kill(-(meta.pid as i32), libc::SIGKILL);
     }
 
-    println!("killed session {session_id} (pid={})", meta.pid);
-    Ok(())
+    Ok(meta.pid)
 }
 
 pub fn force_kill_session(session_id: &str) {

@@ -46,12 +46,13 @@ fn spawn_session(
     server::create_session_dir(&session_id)?;
 
     let mut args = vec![
-        "agent".to_string(),
+        "session".to_string(),
+        "run-session".to_string(),
+        "--agent".to_string(),
         "codex".to_string(),
-        "--run".to_string(),
         "--session-id".to_string(),
         session_id.clone(),
-        "--codex-command".to_string(),
+        "--agent-command".to_string(),
         codex_command.to_string(),
     ];
     if let Some(prompt) = initial_prompt {

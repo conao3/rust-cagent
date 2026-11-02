@@ -64,12 +64,13 @@ fn spawn_session(
     server::create_session_dir(&session_id)?;
 
     let mut args = vec![
-        "agent".to_string(),
+        "session".to_string(),
+        "run-session".to_string(),
+        "--agent".to_string(),
         "claude".to_string(),
-        "--run".to_string(),
         "--session-id".to_string(),
         session_id.clone(),
-        "--claude-command".to_string(),
+        "--agent-command".to_string(),
         claude_command.to_string(),
     ];
     if let Some(dir) = claude_config_dir {

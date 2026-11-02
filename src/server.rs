@@ -62,14 +62,14 @@ fn is_pid_alive(pid: u32) -> bool {
     unsafe { libc::kill(pid as i32, 0) == 0 }
 }
 
-fn running_server_pid() -> Option<u32> {
+pub fn running_server_pid() -> Option<u32> {
     let pid = read_server_pid()?;
     if is_pid_alive(pid) { Some(pid) } else { None }
 }
 
 pub fn spawn_via_server(argv: Vec<String>) -> anyhow::Result<u32> {
     if running_server_pid().is_none() {
-        anyhow::bail!("server is not running. start it with `cagent server`");
+        anyhow::bail!("server is not running. start it with `cagent server start-server`");
     }
     tracing::info!("spawning via server: {:?}", argv);
     std::thread::spawn(move || {

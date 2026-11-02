@@ -20,14 +20,14 @@ Layer dependencies are one-way:
 
 The server layer is the process supervisor and entrypoint.
 
-- Starts and keeps `cagent server` running in foreground.
+- Starts and keeps `cagent server start-server` running in foreground.
 - Exposes internal HTTP endpoints (`/health`, `/spawn`) for child process spawning.
 - Starts Telegram communication loop together with API loop.
 - Writes server pid to state path.
 
 ### In Scope
 
-- Process spawning (`agent claude --run`, `agent codex --run`).
+- Process spawning (`session run-session --agent claude`, `session run-session --agent codex`).
 - Child process parent/child relationship management.
 - Lifecycle orchestration only.
 
@@ -91,7 +91,7 @@ The agent layer encapsulates Claude/Codex runtime behavior.
 
 ## Session Lifecycle
 
-1. `cagent server` starts.
+1. `cagent server start-server` starts.
 2. Communication receives Telegram text.
 3. Communication derives `session_id` from chat/thread.
 4. If session is absent, communication triggers agent launch with that `session_id`.

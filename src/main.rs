@@ -5,12 +5,16 @@ mod server;
 mod telegram;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
+    let filter = if cli::debug_requested() {
+        tracing_subscriber::EnvFilter::new("debug")
+    } else {
+        tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into())
+    };
     tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
-        )
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
         .init();
 
-    cli::run().await
+    std::process::exit(cli::main().await);
 }
