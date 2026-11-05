@@ -4,11 +4,10 @@ mod output;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::agent::claude::server as session_store;
 use error::{Error, Result, other, parameter, target};
-use grammar::{CliInputArgs, SkeletonKind};
 use output::{OutputFormat, Response};
 
 #[derive(Parser)]
@@ -21,14 +20,6 @@ struct Cli {
     /// Output format
     #[arg(long, global = true, help_heading = "Global Options", value_enum, default_value_t = OutputFormat::Json)]
     output: OutputFormat,
-    /// JMESPath expression applied to the output
-    #[arg(
-        long,
-        global = true,
-        help_heading = "Global Options",
-        value_name = "JMESPATH"
-    )]
-    query: Option<String>,
     /// Print debug logs to stderr
     #[arg(long, global = true, help_heading = "Global Options")]
     debug: bool,
@@ -53,7 +44,7 @@ enum Command {
 enum ServerCommand {
     /// Run the server in the foreground (REST endpoint and Telegram bot) until interrupted
     #[command(name = "start-server")]
-    Start(NoArgs),
+    Start,
 }
 
 #[derive(Subcommand)]
@@ -66,10 +57,10 @@ enum SessionCommand {
     Run(RunSessionArgs),
     /// List the live sessions, removing the directories of dead ones
     #[command(name = "list-sessions")]
-    List(NoArgs),
+    List,
     /// Kill every session and remove all session directories
     #[command(name = "prune-sessions")]
-    Prune(NoArgs),
+    Prune,
     /// Kill one session
     #[command(name = "kill-session")]
     Kill(SessionIdArgs),
@@ -88,7 +79,7 @@ enum CronJobCommand {
     Create(CreateCronJobArgs),
     /// List the stored cron job definitions
     #[command(name = "list-cron-jobs")]
-    List(NoArgs),
+    List,
     /// Delete a stored cron job definition
     #[command(name = "delete-cron-job")]
     Delete(JobIdArgs),
@@ -108,12 +99,6 @@ impl Agent {
             Agent::Codex => "codex",
         }
     }
-}
-
-#[derive(Args)]
-struct NoArgs {
-    #[command(flatten)]
-    input: CliInputArgs,
 }
 
 #[derive(Args)]
@@ -156,8 +141,6 @@ struct CreateSessionArgs {
     /// Session ID to use (a random 8-digit hex ID when omitted)
     #[arg(long, allow_hyphen_values = true)]
     session_id: Option<String>,
-    #[command(flatten)]
-    input: CliInputArgs,
 }
 
 #[derive(Args)]
@@ -167,8 +150,6 @@ struct RunSessionArgs {
     /// Session ID whose directory and FIFOs the worker uses
     #[arg(long, allow_hyphen_values = true)]
     session_id: String,
-    #[command(flatten)]
-    input: CliInputArgs,
 }
 
 #[derive(Args)]
@@ -176,8 +157,6 @@ struct SessionIdArgs {
     /// Session ID
     #[arg(long, allow_hyphen_values = true)]
     session_id: String,
-    #[command(flatten)]
-    input: CliInputArgs,
 }
 
 #[derive(Args)]
@@ -188,8 +167,6 @@ struct SendPromptArgs {
     /// Prompt text (file:///dev/stdin reads standard input)
     #[arg(long, allow_hyphen_values = true)]
     prompt: String,
-    #[command(flatten)]
-    input: CliInputArgs,
 }
 
 #[derive(Args)]
@@ -200,8 +177,6 @@ struct CreateCronJobArgs {
     /// Prompt to send on schedule
     #[arg(long, allow_hyphen_values = true)]
     prompt: String,
-    #[command(flatten)]
-    input: CliInputArgs,
 }
 
 #[derive(Args)]
@@ -209,8 +184,6 @@ struct JobIdArgs {
     /// Cron job ID
     #[arg(long)]
     job_id: String,
-    #[command(flatten)]
-    input: CliInputArgs,
 }
 
 #[derive(Serialize)]
@@ -273,57 +246,6 @@ fn failed(error: anyhow::Error) -> Error {
     other(format!("{error:#}"))
 }
 
-fn sample_cron_job() -> CronJob {
-    CronJob {
-        job_id: String::new(),
-        cron_expression: String::new(),
-        prompt: String::new(),
-    }
-}
-
-fn output_skeleton(path: &[String]) -> Result<Value> {
-    match path.last().map(String::as_str) {
-        Some("start-server" | "run-session" | "attach-session") => Ok(json!({})),
-        Some("create-session") => to_value(&CreateSessionOutput {
-            session_id: String::new(),
-            agent: Agent::Claude,
-        }),
-        Some("list-sessions") => to_value(&SessionsOutput {
-            sessions: vec![session_store::SessionInfo {
-                session_id: String::new(),
-                pid: 0,
-                cwd: String::new(),
-            }],
-        }),
-        Some("prune-sessions") => to_value(&SessionsOutput {
-            sessions: vec![session_store::PrunedSession {
-                session_id: String::new(),
-                pid: Some(0),
-                action: session_store::PruneAction::Killed,
-            }],
-        }),
-        Some("kill-session") => to_value(&KillSessionOutput {
-            session_id: String::new(),
-            pid: 0,
-        }),
-        Some("send-prompt") => to_value(&SendPromptOutput {
-            session_id: String::new(),
-        }),
-        Some("create-cron-job") => to_value(&CronJobOutput {
-            cron_job: sample_cron_job(),
-        }),
-        Some("list-cron-jobs") => to_value(&CronJobsOutput {
-            cron_jobs: vec![sample_cron_job()],
-        }),
-        Some("delete-cron-job") => to_value(&DeleteCronJobOutput {
-            job_id: String::new(),
-        }),
-        _ => Err(parameter(
-            "--generate-cli-skeleton needs a command and a subcommand",
-        )),
-    }
-}
-
 fn require_session(session_id: &str) -> Result<()> {
     if session_store::session_exists(session_id) {
         Ok(())
@@ -358,35 +280,12 @@ pub async fn main() -> i32 {
 async fn run() -> Result<()> {
     let mut root = Cli::command();
     root.build();
-    let prepared = grammar::prepare(&root, std::env::args_os().collect())?;
-    if prepared.argv.iter().any(|token| token == "--debug") {
-        eprintln!("debug: argv {:?}", &prepared.argv[1..]);
+    let argv = grammar::prepare(&root, std::env::args_os().collect())?;
+    if argv.iter().any(|token| token == "--debug") {
+        eprintln!("debug: argv {:?}", &argv[1..]);
     }
 
-    if let Some(kind) = prepared.skeleton {
-        let mut command = &root;
-        for name in &prepared.path {
-            command = command
-                .find_subcommand(name)
-                .ok_or_else(|| other(format!("unknown subcommand {name}")))?;
-        }
-        if command.has_subcommands() {
-            return Err(parameter(
-                "--generate-cli-skeleton needs a command and a subcommand",
-            ));
-        }
-        let value = match kind {
-            SkeletonKind::Input => grammar::input_skeleton(command),
-            SkeletonKind::Output => output_skeleton(&prepared.path)?,
-        };
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&value).map_err(|error| other(error.to_string()))?
-        );
-        return Ok(());
-    }
-
-    let cli = match Cli::try_parse_from(&prepared.argv) {
+    let cli = match Cli::try_parse_from(&argv) {
         Ok(cli) => cli,
         Err(error) => {
             let code = if error.use_stderr() { 252 } else { 0 };
@@ -395,11 +294,8 @@ async fn run() -> Result<()> {
         }
     };
 
-    if let Some(query) = &cli.query {
-        output::compile_query(query)?;
-    }
     let (name, value) = match cli.command {
-        Command::Server(ServerCommand::Start(_)) => {
+        Command::Server(ServerCommand::Start) => {
             crate::server::run_server().await.map_err(failed)?;
             return Ok(());
         }
@@ -468,13 +364,13 @@ async fn run() -> Result<()> {
                 .map_err(failed)?;
                 return Ok(());
             }
-            SessionCommand::List(_) => (
+            SessionCommand::List => (
                 "list-sessions",
                 to_value(&SessionsOutput {
                     sessions: session_store::list_sessions().map_err(failed)?,
                 })?,
             ),
-            SessionCommand::Prune(_) => (
+            SessionCommand::Prune => (
                 "prune-sessions",
                 to_value(&SessionsOutput {
                     sessions: session_store::prune_sessions().map_err(failed)?,
@@ -529,7 +425,7 @@ async fn run() -> Result<()> {
                     })?,
                 )
             }
-            CronJobCommand::List(_) => {
+            CronJobCommand::List => {
                 let cron_jobs = crate::cron::storage::list()
                     .map_err(failed)?
                     .into_iter()
@@ -564,8 +460,7 @@ async fn run() -> Result<()> {
         output::render(
             &grammar::pascal_case(name),
             Response { value, text: None },
-            cli.output,
-            cli.query.as_deref()
+            cli.output
         )?
     );
     Ok(())
@@ -587,10 +482,7 @@ mod tests {
     #[test]
     fn parses_start_server() {
         let cli = parse(&["cagent", "server", "start-server"]);
-        assert!(matches!(
-            cli.command,
-            Command::Server(ServerCommand::Start(_))
-        ));
+        assert!(matches!(cli.command, Command::Server(ServerCommand::Start)));
     }
 
     #[test]

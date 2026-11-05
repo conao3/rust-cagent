@@ -19,8 +19,7 @@ cargo build
 Commands follow the AWS CLI grammar: `cagent [global options] <command> <subcommand> [--parameter value ...]`.
 
 - Every parameter is named (`--session-id`, `--prompt`, ...). A value starting with `file://` is read from that file, and `file:///dev/stdin` reads standard input.
-- `--cli-input-json file://input.json` passes the parameters as a JSON object keyed by the PascalCase parameter names; parameters on the command line take precedence. `--generate-cli-skeleton input|output` prints the input or output skeleton.
-- Global options: `--output json|text|table` (default `json`), `--query <JMESPath>`, `--debug`, `--version`.
+- Global options: `--output json|text|table` (default `json`), `--debug`, `--version`.
 - `help` works at every level: `cagent help`, `cagent session help`, `cagent session send-prompt help`.
 - Output keys are PascalCase.
 - Exit codes: 0 success, 252 invalid command or parameter, 254 the target is missing (unknown session or cron job, server not running), 255 other failures.
