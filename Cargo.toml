@@ -17,10 +17,10 @@ portable-pty = "0.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 rand = "0.10"
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "json", "rustls"] }
 teloxide = { version = "0.17", default-features = false, features = ["rustls", "ctrlc_handler", "macros"] }
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "signal", "macros", "net", "io-util", "io-std", "time", "process"] }
-toml = "1.1"
+toml = "1.2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 unicode-width = "0.2"
