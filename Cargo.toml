@@ -11,7 +11,7 @@ axum = "0.8"
 clap = { version = "4", features = ["derive"] }
 dirs = "7"
 libc = "0.2"
-notify = "8"
+notify = "9"
 # https://github.com/wezterm/wezterm/tree/main/pty
 portable-pty = "0.9"
 serde = { version = "1.0", features = ["derive"] }
