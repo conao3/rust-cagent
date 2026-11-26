@@ -103,3 +103,13 @@ make test
 make check
 make fmt
 ```
+
+## Release
+
+Dispatch the Release workflow from `master`. It bumps the version, runs the checks, pushes the version commit and the tag `v<version>`, publishes `cagent` to crates.io through trusted publishing, and creates the GitHub Release with the binaries for Linux and macOS.
+
+```sh
+gh workflow run release.yml --ref master -f version_bump=patch
+```
+
+Use `minor` or `major` for the other bumps.

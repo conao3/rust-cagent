@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "A CLI agent tool"
 license = "Apache-2.0"
+repository = "https://github.com/conao3/rust-cagent"
 
 [dependencies]
 anyhow = "1.0"
